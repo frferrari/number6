@@ -123,4 +123,16 @@ object DelcampeTools {
    * @return
    */
   def randomDurationMs(minDurationMs: Int = 1000): FiniteDuration = (minDurationMs + rnd.nextInt(2000)).milliseconds
+
+  /**
+   * Extracts the label associated to a seller information (Location of the seller, Nickname of the seller, ...)
+   * @param htmlText The label as available in the html doc, ex: Location: or Seller:
+   * @return The label is returned as uppercase with alphabetical characters only, ex: LOCATION or SELLER
+   */
+  def extractSellerInfoLabel(htmlText: String): String = {
+    val labelRegex = "([A-Z]+).*".r
+
+    val labelRegex(label) = htmlText.trim.toUpperCase
+    label
+  }
 }

@@ -4,16 +4,18 @@ import java.util.Date
 
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{Behavior, scaladsl}
-import com.fferrari.DelcampeTools.{parseHtmlDate, randomDurationMs, relativeToAbsoluteUrl}
+import com.fferrari.DelcampeTools.{randomDurationMs, relativeToAbsoluteUrl}
 import com.fferrari.PriceScrapperProtocol._
 import net.ruippeixotog.scalascraper.browser.{Browser, JsoupBrowser}
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.model.Element
 
-import scala.jdk.CollectionConverters._
+import scala.util.Try
 
 object PriceScrapperDelcampe {
+  val itemsPerPage: Int = 480
+
   lazy val jsoupBrowser: Browser = JsoupBrowser()
 
   case class SellerDetails(nickname: Option[String], location: Option[String], isProfessional: Option[Boolean])
@@ -46,11 +48,11 @@ object PriceScrapperDelcampe {
 
         case (context, ExtractAuctionUrls(websiteInfo, auctionUrls, pageNumber)) =>
 
-          context.log.info(s"Scrapping URL: $websiteInfo")
+          context.log.info(s"Scraping URL: $websiteInfo")
           extractAuctionUrls(websiteInfo, context, pageNumber) match {
             case urls@h :: t =>
               // We schedule the next extraction so that we don't query the website too frequently
-              urls.foreach { url => context.log.info(s"==> ExtractAuctions $url") }
+              // urls.foreach { url => context.log.info(s"==> ExtractAuctions $url") }
               timers.startSingleTimer(ExtractAuctions(urls), randomDurationMs())
             // timers.startSingleTimer(ExtractAuctionUrls(websiteInfo, auctionUrls ++ urls, pageNumber + 1), randomDurationMs())
 
@@ -65,6 +67,7 @@ object PriceScrapperDelcampe {
           auctionUrls match {
             case auctionUrl :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: $auctionUrl")
+              extractAuction(auctionUrl)
               timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
 
             case _ =>
@@ -87,7 +90,6 @@ object PriceScrapperDelcampe {
                          context: scaladsl.ActorContext[PriceScrapperCommand],
                          pageNumber: Int = 1): List[String] = {
     // https://github.com/ruippeixotog/scala-scraper
-    val itemsPerPage: Int = 480
     val pagedUrl: String = s"${websiteInfo.url}&size=$itemsPerPage&page=$pageNumber"
 
     context.log.info(s"Parsing url $pagedUrl")
@@ -112,79 +114,72 @@ object PriceScrapperDelcampe {
     }
   }
 
-  def extractPrices(url: String, context: scaladsl.ActorContext[PriceScrapperCommand], pageNumber: Int = 1): Unit = {
-    // https://github.com/ruippeixotog/scala-scraper
-    val itemsPerPage: Int = 480
-    val pagedUrl: String = s"$url&size=$itemsPerPage&page=$pageNumber"
+  def extractAuction(auctionUrl: String) = {
+    val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
 
-    context.log.info(s"Parsing url $pagedUrl")
+    // Seller details
+    val sellerDetails: Option[SellerDetails] = extractSellerDetails(htmlDoc)
 
-    val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(pagedUrl)
+    // Auction details
+    val htmlAuctionTitle: String = htmlDoc >> text("div.item-title h1 span")
+    val htmlSellingType: String = if (htmlDoc >> attr("title")("div.price-info div") == "Auction") "auction" else "fixed"
+    val htmlItemPrice: String = htmlDoc >> text("div#closed-sell div.price-info span.price")
+    val currencyAndPrice: Option[(String, BigDecimal)] = DelcampeTools.parseHtmlPrice(htmlItemPrice)
+    val htmlBidCount = htmlDoc >?> text("ul.bottom-infos-actions li a.orange")
+    val bidCount = DelcampeTools.bidCountFromText(htmlBidCount)
+    val htmlImageUrl: String = htmlDoc >> attr("src")("div.item-thumbnails img.img-lense")
+    val htmlItemId: String = htmlDoc >> attr("data-id")("div#confirm_question_modal")
+    val htmlDescriptionInfo: List[Element] = htmlDoc >> elementList("div#tab-description div.description-info ul > li")
+    val htmlSoldAt: Option[String] = Try(htmlDescriptionInfo(1) >> text("div")).toOption
 
-    val htmlItems: List[Element] = htmlDoc >> elementList(".item-listing .item-main-infos")
+    // Bids details
+    val bids: List[Bid] = extractBids(htmlDoc)
 
-    if (htmlItems.nonEmpty) {
-      val commands: List[CreateAuction] =
-        for {
-          htmlItem <- htmlItems
-          htmlItemInfo = htmlItem >> element("div.item-info")
-          htmlItemSellingType = htmlItemInfo >> element("div.selling-type")
-          htmlAuctionUrl = relativeToAbsoluteUrl(url, htmlItemInfo >> element("a") >> attr("href"))
-          htmlAuctionTitle = htmlItemInfo >> element("a") >> attr("title")
-          // itemSellingTypeText can be icon-fixed-price OR icon-bid
-          htmlItemSellingTypeText = htmlItemSellingType >> element("span.selling-type-icon svg") >> attr("class")
-          sellingType = if (htmlItemSellingTypeText == "icon-fixed-price") "fixed" else "bid" // TODO enum
-          htmlItemPrice = htmlItemInfo >> text("strong.item-price")
-          currencyAndPrice = DelcampeTools.parseHtmlPrice(htmlItemPrice)
-          htmlBidCount = DelcampeTools.bidCountFromText(htmlItemInfo >?> text("li.orange"))
-          htmlImageInfo = htmlItem >> element("div.image-container a.img-view")
-          htmlImageUrl = htmlImageInfo >> attr("href")
-          htmlItemId = htmlImageInfo >> attr("data-item-id")
-          htmlSaleClosed = htmlItem >> text("span")
-          auctionDetails = fetchAuctionDetails(htmlAuctionUrl)
-          _ = Thread.sleep(1000) // TODO this is temporary, to be REMOVED
-          currency <- currencyAndPrice.map(_._1)
-          price <- currencyAndPrice.map(_._2)
-        } yield CreateAuction(htmlItemId, htmlAuctionUrl, htmlImageUrl, sellingType, htmlAuctionTitle, currency, price, htmlBidCount)
-
-      commands.foreach(command => context.log.info(s"$command"))
-
-      // extractPrices(url, context, pageNumber + 1)
-    }
+    println(s">>>>>> AuctionId $htmlItemId")
+    println(s"            htmlImageUrl $htmlImageUrl")
+    println(s"            htmlSoldAt $htmlSoldAt")
+    println(s"            htmlBidCount $htmlBidCount bidCount $bidCount")
+    println(s"            htmlPrice $htmlItemPrice")
+    println(s"            currencyAndPrice $currencyAndPrice")
+    println(s"            htmlSellingType $htmlSellingType")
+    println(s"            htmlAuctionTitle $htmlAuctionTitle")
+    println(s"            >>>>>> bids")
+    bids.foreach { bid => println(s"                       bid $bid") }
   }
 
-  def fetchAuctionDetails(url: String): AuctionDetails = {
-    val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(url)
-
-    val htmlDateClosed: String = htmlDoc >> element("ul.bottom-infos-actions li") >> text("p")
-
-    AuctionDetails(
-      parseHtmlDate(htmlDateClosed),
-      extractSellerDetails(htmlDoc),
-      extractBids(htmlDoc)
-    )
-  }
-
+  /**
+   * Extracts the details of a seller
+   * @param htmlDoc The html document to be parsed
+   * @return
+   */
   def extractSellerDetails(htmlDoc: jsoupBrowser.DocumentType): Option[SellerDetails] = {
-    (htmlDoc >> elementList("div#seller-info li"))
+    (htmlDoc >> elementList("div#seller-info ul > li"))
       .foldLeft(Option.empty[SellerDetails]) {
         case (acc, htmlSellerInfo) =>
-          (htmlSellerInfo >> "strong" >> text).trim match {
-            case "Location:" =>
-              val htmlLocation: String = htmlSellerInfo >> text("div")
-              acc.map(_.copy(location = Some(htmlLocation)))
+          (htmlSellerInfo >?> text("strong")) match {
+            case Some(htmlText) =>
+              DelcampeTools.extractSellerInfoLabel(htmlText) match {
+                case "LOCATION" =>
+                  val htmlLocation: String = htmlSellerInfo >> text("div")
+                  acc.map(_.copy(location = Some(htmlLocation)))
 
-            case "Seller:" =>
-              val htmlNickname: String = htmlSellerInfo >> text("span.nickname")
-              val isProfessional: Option[Boolean] = Option((htmlSellerInfo >?> element("i.icon-pro")).nonEmpty)
-              acc.map(_.copy(nickname = Some(htmlNickname), isProfessional = isProfessional))
+                case "SELLER" =>
+                  val htmlNickname: String = htmlSellerInfo >> text("span.nickname")
+                  val isProfessional: Option[Boolean] = Option((htmlSellerInfo >?> element("i.icon-pro")).nonEmpty)
+                  acc.map(_.copy(nickname = Some(htmlNickname), isProfessional = isProfessional))
+
+                case _ =>
+                  acc
+              }
+            case None =>
+              acc
           }
       }
   }
 
   /**
    * Extracts the list of bids from an auction page
-   * @param htmlDoc A jsoupBrowser instance
+   * @param htmlDoc The html document to be parsed
    * @return
    */
   def extractBids(htmlDoc: jsoupBrowser.DocumentType): List[Bid] = {

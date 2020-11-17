@@ -99,4 +99,8 @@ class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
   "A string containing the CHF string" should "produce the CHF string" in {
     assert(DelcampeTools.normalizeCurrency("CHF") == "CHF")
   }
+
+  "A seller information label of 'Location:'" should "produce the string LOCATION" in {
+    assert(DelcampeTools.extractSellerInfoLabel("Location:") == "LOCATION")
+  }
 }
