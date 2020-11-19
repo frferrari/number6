@@ -1,8 +1,6 @@
 package com.fferrari
 
 object PriceScrapperProtocol {
-  sealed trait Website
-  final case object Delcampe extends Website
 
   sealed trait PriceScrapperCommand
   final case class ScrapWebsite(website: Website) extends PriceScrapperCommand

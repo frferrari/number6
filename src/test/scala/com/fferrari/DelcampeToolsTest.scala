@@ -103,4 +103,12 @@ class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
   "A seller information label of 'Location:'" should "produce the string LOCATION" in {
     assert(DelcampeTools.extractSellerInfoLabel("Location:") == "LOCATION")
   }
+
+  "A string containing a purchase quantity of 1" should "be parsed as the value 1" in {
+    assert(DelcampeTools.parseHtmlQuantity("1 item").contains(1))
+  }
+
+  "A string containing a purchase quantity of 2" should "be parsed as the value 2" in {
+    assert(DelcampeTools.parseHtmlQuantity("2 items").contains(2))
+  }
 }

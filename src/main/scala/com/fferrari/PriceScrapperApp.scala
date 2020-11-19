@@ -16,6 +16,6 @@ object PriceScrapper {
 }
 
 object PriceScrapperApp extends App {
-  val priceScrapper = ActorSystem(PriceScrapper(), "PriceScrapper")
+  val priceScrapper = ActorSystem(AuctionScrapper(), "PriceScrapper")
   priceScrapper ! ScrapWebsite(Delcampe)
 }

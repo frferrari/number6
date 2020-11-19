@@ -4,7 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 object DelcampeTools {
   val rnd = scala.util.Random
@@ -74,6 +74,20 @@ object DelcampeTools {
 
       val dateFormat = new SimpleDateFormat("MMM d yyyy hh:mm:ss aaa")
       dateFormat.parse(curatedDate)
+    }.toOption
+  }
+
+  /**
+   * Extracts a quantity of items purchased from a given string
+   * @param htmlQuantity The quantity of items purchased expressed like "1 item"
+   * @return
+   */
+  def parseHtmlQuantity(htmlQuantity: String): Option[Int] = {
+    val quantityRegex = "([0-9]+) item.*".r
+
+    Try {
+      val quantityRegex(quantity) = htmlQuantity
+      quantity.toInt
     }.toOption
   }
 

@@ -13,14 +13,16 @@ import net.ruippeixotog.scalascraper.model.Element
 
 import scala.util.Try
 
-object PriceScrapperDelcampe {
+object AuctionScrapperActor {
+  self: AuctionScrapper =>
+
   val itemsPerPage: Int = 480
 
   lazy val jsoupBrowser: Browser = JsoupBrowser()
 
   case class SellerDetails(nickname: Option[String], location: Option[String], isProfessional: Option[Boolean])
 
-  case class Bid(nickname: String, price: BigDecimal, currency: String, isAutomatic: Boolean, bidAt: Date)
+  case class Bid(nickname: String, price: BigDecimal, currency: String, quantity: Int, isAutomatic: Boolean, bidAt: Date)
 
   case class AuctionDetails(dateClosed: Option[Date], sellerDetails: Option[SellerDetails], bids: List[Bid])
 
@@ -118,33 +120,70 @@ object PriceScrapperDelcampe {
     val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
 
     // Seller details
-    val sellerDetails: Option[SellerDetails] = extractSellerDetails(htmlDoc)
+    // val sellerDetails: Option[SellerDetails] = extractSellerDetails(htmlDoc)
+
+    for {
+      htmlId <- this.fetchId(htmlDoc)
+      htmlAuctionTitle <- this.fetchTitle(htmlDoc)
+      htmlSellerNickname <- this.fetchSellerNickname(htmlDoc)
+      htmlSellerLocation <- this.fetchSellerLocation(htmlDoc)
+      htmlAuctionType <- this.fetchAuctionType(htmlDoc)
+      htmlStartPrice <- this.fetchStartPrice(htmlDoc)
+      htmlFinalPrice <- this.fetchFinalPrice(htmlDoc)
+      htmlStartDate <- this.fetchStartDate(htmlDoc)
+      htmlEndDate <- this.fetchEndDate(htmlDoc)
+      htmlLargeImageUrl <- this.fetchLargeImageUrl(htmlDoc)
+      bids = this.fetchBids(htmlDoc)
+      bidCount = this.fetchBidCount(htmlDoc)
+    } yield {
+      println(s">>>>>> AuctionId $htmlId")
+      println(s"            htmlSellerNickname $htmlSellerNickname")
+      println(s"            htmlSellerLocation $htmlSellerLocation")
+      println(s"            htmlLargeImageUrl $htmlLargeImageUrl")
+      println(s"            htmlStartDate $htmlStartDate")
+      println(s"            htmlEndDate $htmlEndDate")
+      println(s"            bidCount $bidCount")
+      println(s"            htmlStartPrice $htmlStartPrice")
+      println(s"            htmlFinalPrice $htmlFinalPrice")
+      println(s"            htmlAuctionType $htmlAuctionType")
+      println(s"            htmlAuctionTitle $htmlAuctionTitle")
+      println(s"            >>>>>> bids")
+      bids.foreach { bid => println(s"                       bid $bid") }
+    }
 
     // Auction details
+    /*
     val htmlAuctionTitle: String = htmlDoc >> text("div.item-title h1 span")
-    val htmlSellingType: String = if (htmlDoc >> attr("title")("div.price-info div") == "Auction") "auction" else "fixed"
+    val htmlSellingType = if (htmlDoc >> attr("title")("div.price-info div") == "Auction") BidType else FixedPriceType
     val htmlItemPrice: String = htmlDoc >> text("div#closed-sell div.price-info span.price")
     val currencyAndPrice: Option[(String, BigDecimal)] = DelcampeTools.parseHtmlPrice(htmlItemPrice)
-    val htmlBidCount = htmlDoc >?> text("ul.bottom-infos-actions li a.orange")
-    val bidCount = DelcampeTools.bidCountFromText(htmlBidCount)
     val htmlImageUrl: String = htmlDoc >> attr("src")("div.item-thumbnails img.img-lense")
     val htmlItemId: String = htmlDoc >> attr("data-id")("div#confirm_question_modal")
     val htmlDescriptionInfo: List[Element] = htmlDoc >> elementList("div#tab-description div.description-info ul > li")
     val htmlSoldAt: Option[String] = Try(htmlDescriptionInfo(1) >> text("div")).toOption
 
-    // Bids details
-    val bids: List[Bid] = extractBids(htmlDoc)
+    val (bidCount, bids) =
+      htmlSellingType match {
+        case BidType =>
+          val htmlBidCount = htmlDoc >?> text("ul.bottom-infos-actions li a.orange")
+          val bids: List[Bid] = extractBids(htmlDoc, htmlSellingType)
+          (DelcampeTools.bidCountFromText(htmlBidCount), bids)
+        case FixedPriceType =>
+          val bids: List[Bid] = extractBids(htmlDoc, htmlSellingType, currencyAndPrice)
+          (1, bids)
+      }
 
-    println(s">>>>>> AuctionId $htmlItemId")
+    println(s">>>>>> AuctionId $htmlId")
     println(s"            htmlImageUrl $htmlImageUrl")
     println(s"            htmlSoldAt $htmlSoldAt")
-    println(s"            htmlBidCount $htmlBidCount bidCount $bidCount")
+    println(s"            bidCount $bidCount")
     println(s"            htmlPrice $htmlItemPrice")
     println(s"            currencyAndPrice $currencyAndPrice")
     println(s"            htmlSellingType $htmlSellingType")
     println(s"            htmlAuctionTitle $htmlAuctionTitle")
     println(s"            >>>>>> bids")
     bids.foreach { bid => println(s"                       bid $bid") }
+    */
   }
 
   /**
@@ -182,21 +221,38 @@ object PriceScrapperDelcampe {
    * @param htmlDoc The html document to be parsed
    * @return
    */
-  def extractBids(htmlDoc: jsoupBrowser.DocumentType): List[Bid] = {
-    val htmlBidsTable = htmlDoc >> elementList("div.bids-container ul.table-body-list")
-    val htmlBidsWithDetails = htmlBidsTable.map(bid => (bid, bid >> elementList("li")))
+  def extractBids(htmlDoc: jsoupBrowser.DocumentType, htmlSellingType: AuctionType, currencyAndPrice: Option[(String, BigDecimal)]): List[Bid] =
+    htmlSellingType match {
+      case BidType =>
+        val htmlBidsTable = htmlDoc >> elementList("div.bids-container ul.table-body-list")
+        val htmlBidsWithDetails = htmlBidsTable.map(bid => (bid, bid >> elementList("li")))
 
-    htmlBidsWithDetails.collect {
-      case (bid, htmlTableColumns) if htmlTableColumns.length >= 3 =>
-        val htmlNickname: Option[String] = bid >?> text("span.nickname")
-        val htmlCurrencyAndPrice: Option[(String, BigDecimal)] = (htmlTableColumns(1) >?> text("strong")).flatMap(DelcampeTools.parseHtmlPrice)
-        val htmlBidDate: Option[Date] = (htmlTableColumns(2) >?> text).flatMap(DelcampeTools.parseHtmlShortDate)
-        val isAutomaticBid: Boolean = (htmlTableColumns(1) >?> text("span")).contains("automatic")
+        htmlBidsWithDetails.collect {
+          case (bid, htmlTableColumns) if htmlTableColumns.length >= 3 =>
+            val htmlNickname: Option[String] = bid >?> text("span.nickname")
+            val htmlCurrencyAndPrice: Option[(String, BigDecimal)] = (htmlTableColumns(1) >?> text("strong")).flatMap(DelcampeTools.parseHtmlPrice)
+            val htmlBidDate: Option[Date] = (htmlTableColumns(2) >?> text).flatMap(DelcampeTools.parseHtmlShortDate)
+            val isAutomaticBid: Boolean = (htmlTableColumns(1) >?> text("span")).contains("automatic")
 
-        (htmlNickname, htmlCurrencyAndPrice, htmlBidDate) match {
-          case (Some(nickname), Some((currency, price)), Some(bidDate)) =>
-            Bid(nickname, price, currency, isAutomaticBid, bidDate)
+            (htmlNickname, htmlCurrencyAndPrice, htmlBidDate) match {
+              case (Some(nickname), Some((currency, price)), Some(bidDate)) =>
+                Bid(nickname, price, currency, 1, isAutomaticBid, bidDate)
+            }
+        }
+      case FixedPriceType =>
+        val htmlPurchaseTable = htmlDoc >> elementList("""div[.id="sales"] div.table-view ul.table-body-list""")
+        val htmlPurchaseWithDetails = htmlPurchaseTable.map(purchase => (purchase, purchase >> elementList("li"), currencyAndPrice))
+
+        htmlPurchaseWithDetails.collect {
+          case (purchase, htmlTableColumns, Some(cp)) if htmlTableColumns.length >= 3 =>
+            val htmlNickname: String = purchase >> text("li.list-user span")
+            // val htmlCurrencyAndPrice: Option[(String, BigDecimal)] = (htmlTableColumns(1) >?> text("strong")).flatMap(DelcampeTools.parseHtmlPrice)
+            val htmlPurchaseDate: String = htmlTableColumns(2) >> text
+            val htmlPurchaseTime: String = htmlTableColumns(3) >> text
+            val purchaseDate: Option[Date] = DelcampeTools.parseHtmlShortDate(s"$htmlPurchaseDate $htmlPurchaseTime")
+            val purchaseQuantity = DelcampeTools.parseHtmlQuantity(htmlTableColumns(1) >> text)
+
+            Bid(htmlNickname, cp._2, cp._1, purchaseQuantity.getOrElse(0), isAutomatic = false, purchaseDate.get) // TODO remove .get
         }
     }
-  }
 }
