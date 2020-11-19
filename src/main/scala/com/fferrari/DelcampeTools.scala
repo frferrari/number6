@@ -3,18 +3,21 @@ package com.fferrari
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import scala.util.Try
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.util.{Failure, Success, Try}
 
 object DelcampeTools {
+  val rnd = scala.util.Random
+
   /**
    * Parses a string containing a currency and a price and extracts this 2 components as a tuple
-   * @param priceString A string containing a currency and a price of the following form: €2.75
+   * @param htmlPrice A string containing a currency and a price of the following form: €2.75
    */
-  def parsePriceString(priceString: String): Option[(String, BigDecimal)] = {
+  def parseHtmlPrice(htmlPrice: String): Option[(String, BigDecimal)] = {
     val priceRegex = "([^0-9\\.]+)([0-9\\.]+)".r
 
     Try {
-      val priceRegex(currency, price) = priceString
+      val priceRegex(currency, price) = htmlPrice
       (normalizeCurrency((currency)), BigDecimal(price))
     }.toOption
   }
@@ -33,16 +36,16 @@ object DelcampeTools {
 
   /**
    * Converts the given string date to a java.util.Date
-   * @param dateString A Date of the follawing form "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
+   * @param htmlDate A Date of the follawing form "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
    * @return
    */
-  def dateStringToDate(dateString: String): Option[Date] = {
-    // dateClosed is of the following form
+  def parseHtmlDate(htmlDate: String): Option[Date] = {
+    // htmlDate is expected to be of the following form
     // "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
 
     Try {
       val curatedDate: String =
-        dateString
+        htmlDate
           .replace("Ended on", "")
           .replace("<br>", "")
           .replace(" at ", " ")
@@ -56,21 +59,35 @@ object DelcampeTools {
 
   /**
    * Converts the given string date to a java.util.Date
-   * @param dateString A Date of the follawing form "Nov 15, 2020 at 7:17:06 PM"
+   * @param htmlShortDate A Date of the following form "Nov 15, 2020 at 7:17:06 PM"
    * @return
    */
-  def shortDateStringToDate(dateString: String): Option[Date] = {
-    // dateClosed is of the following form
+  def parseHtmlShortDate(htmlShortDate: String): Option[Date] = {
+    // htmlDate is expected to be of the following form
     // "Nov 15, 2020 at 7:17:06 PM"
 
     Try {
       val curatedDate: String =
-        dateString
+        htmlShortDate
           .replace(" at ", " ")
           .replace(",", "")
 
       val dateFormat = new SimpleDateFormat("MMM d yyyy hh:mm:ss aaa")
       dateFormat.parse(curatedDate)
+    }.toOption
+  }
+
+  /**
+   * Extracts a quantity of items purchased from a given string
+   * @param htmlQuantity The quantity of items purchased expressed like "1 item"
+   * @return
+   */
+  def parseHtmlQuantity(htmlQuantity: String): Option[Int] = {
+    val quantityRegex = "([0-9]+) item.*".r
+
+    Try {
+      val quantityRegex(quantity) = htmlQuantity
+      quantity.toInt
     }.toOption
   }
 
@@ -88,7 +105,11 @@ object DelcampeTools {
       case false =>
         val baseUrlRegex = "(http[s]*://[^/]+).*".r
         val baseUrlRegex(baseUrl) = parentUrl
-        s"$baseUrl/$relativeUrl"
+        if (relativeUrl startsWith "/") {
+          s"$baseUrl$relativeUrl"
+        } else {
+          s"$baseUrl/$relativeUrl"
+        }
     }
   }
 
@@ -108,5 +129,24 @@ object DelcampeTools {
         }
         .map(_.toInt)
     }.toOption.flatten
+  }
+
+  /**
+   * Produces a random milliseconds duration between the given minDuration and minDuration+2000
+   * @param minDurationMs The minimum duration in milliseconds to be returned
+   * @return
+   */
+  def randomDurationMs(minDurationMs: Int = 1000): FiniteDuration = (minDurationMs + rnd.nextInt(2000)).milliseconds
+
+  /**
+   * Extracts the label associated to a seller information (Location of the seller, Nickname of the seller, ...)
+   * @param htmlText The label as available in the html doc, ex: Location: or Seller:
+   * @return The label is returned as uppercase with alphabetical characters only, ex: LOCATION or SELLER
+   */
+  def extractSellerInfoLabel(htmlText: String): String = {
+    val labelRegex = "([A-Z]+).*".r
+
+    val labelRegex(label) = htmlText.trim.toUpperCase
+    label
   }
 }
