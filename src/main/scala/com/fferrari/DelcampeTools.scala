@@ -3,6 +3,8 @@ package com.fferrari
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import com.fferrari.model.Price
+
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.util.{Failure, Success, Try}
 
@@ -12,13 +14,14 @@ object DelcampeTools {
   /**
    * Parses a string containing a currency and a price and extracts this 2 components as a tuple
    * @param htmlPrice A string containing a currency and a price of the following form: €2.75
+   * @return
    */
-  def parseHtmlPrice(htmlPrice: String): Option[(String, BigDecimal)] = {
+  def parseHtmlPrice(htmlPrice: String): Option[Price] = {
     val priceRegex = "([^0-9\\.]+)([0-9\\.]+)".r
 
     Try {
       val priceRegex(currency, price) = htmlPrice
-      (normalizeCurrency((currency)), BigDecimal(price))
+      Price(BigDecimal(price), normalizeCurrency(currency))
     }.toOption
   }
 

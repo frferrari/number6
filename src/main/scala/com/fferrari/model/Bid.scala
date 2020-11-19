@@ -1,3 +1,5 @@
 package com.fferrari.model
 
-case class Bid(bidder: Member, bidPrice: Price, isAutomaticBid: Boolean)
+import java.util.Date
+
+case class Bid(nickname: String, bidPrice: Price, quantity: Int, isAutomaticBid: Boolean, bidAt: Date)
