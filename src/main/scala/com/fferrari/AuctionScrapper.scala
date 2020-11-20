@@ -158,12 +158,13 @@ class DelcampeAuctionScrapper extends AuctionScrapper {
     } else {
       fetchAuctionType match {
         case Some(BidType) =>
-          val htmlBidsTable = htmlDoc >> elementList("div.bids-container ul.table-body-list")
+          val htmlBidsTable = htmlDoc >> elementList("div#tab-bids div.bids-container ul.table-body-list")
+          println(s"=====> htmlBidsTable=$htmlBidsTable")
 
           htmlBidsTable.flatMap { bid =>
-              val htmlNickname: Option[String] = bid >?> text("li:th-child(1) span.nickname")
+              val htmlNickname: Option[String] = bid >?> text("li:nth-child(1) span.nickname")
               val isAutomaticBid: Boolean = (bid >?> text("li:nth-child(2) span")).contains("automatic")
-              val htmlCurrencyAndPrice = (bid >?> text("li:nth-child(2) strong")).flatMap(DelcampeTools.parseHtmlPrice)
+              val htmlCurrencyAndPrice: Option[Price] = (bid >?> text("li:nth-child(2) strong")).flatMap(DelcampeTools.parseHtmlPrice)
               val htmlBidDate: Option[Date] = (bid >?> text("li:nth-child(3)")).flatMap(DelcampeTools.parseHtmlShortDate)
 
               (htmlNickname, htmlCurrencyAndPrice, htmlBidDate) match {

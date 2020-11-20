@@ -103,17 +103,17 @@ object AuctionScrapperActor {
     val bids = auctionScrapper.fetchBids
     val bidCount = auctionScrapper.fetchBidCount
     println(s">>>>>> AuctionId $htmlId")
-    println(s"            htmlIsSold $htmlIsSold")
+    println(s"            htmlAuctionType $htmlAuctionType")
+    println(s"            htmlAuctionTitle $htmlAuctionTitle")
     println(s"            htmlSellerNickname $htmlSellerNickname")
     println(s"            htmlSellerLocation $htmlSellerLocation")
+    println(s"            htmlIsSold $htmlIsSold")
     println(s"            htmlLargeImageUrl $htmlLargeImageUrl")
     println(s"            htmlStartDate $htmlStartDate")
     println(s"            htmlEndDate $htmlEndDate")
     println(s"            bidCount $bidCount")
     println(s"            htmlStartPrice $htmlStartPrice")
     println(s"            htmlFinalPrice $htmlFinalPrice")
-    println(s"            htmlAuctionType $htmlAuctionType")
-    println(s"            htmlAuctionTitle $htmlAuctionTitle")
     println(s"            >>>>>> bids")
     bids.foreach { bid => println(s"                       bid $bid") }
 
