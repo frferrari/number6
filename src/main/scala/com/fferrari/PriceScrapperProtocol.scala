@@ -17,5 +17,5 @@ object PriceScrapperProtocol {
                                  bidCount: Option[Int])
   final case class ScrapAuction(url: String) extends PriceScrapperCommand
 
-  case class WebsiteInfo(url: String, lastScrappedUrl: Option[String])
+  case class WebsiteInfo(website: Website, url: String, lastScrappedUrl: Option[String])
 }
