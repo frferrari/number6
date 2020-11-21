@@ -1,12 +1,12 @@
-package com.fferrari
+package com.fferrari.scrapper
 
 import java.text.SimpleDateFormat
 import java.util.Date
 
 import com.fferrari.model.Price
 
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.duration.FiniteDuration
+import scala.util.Try
 
 object DelcampeTools {
   val rnd = scala.util.Random
@@ -16,13 +16,13 @@ object DelcampeTools {
    * @param htmlPrice A string containing a currency and a price of the following form: €2.75
    * @return
    */
-  def parseHtmlPrice(htmlPrice: String): Option[Price] = {
+  def parseHtmlPrice(htmlPrice: String): Either[Throwable, Price] = {
     val priceRegex = "([^0-9\\.]+)([0-9\\.]+)".r
 
     Try {
       val priceRegex(currency, price) = htmlPrice
       Price(BigDecimal(price), normalizeCurrency(currency))
-    }.toOption
+    }.toEither
   }
 
   /**
@@ -42,7 +42,7 @@ object DelcampeTools {
    * @param htmlDate A Date of the follawing form "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
    * @return
    */
-  def parseHtmlDate(htmlDate: String): Option[Date] = {
+  def parseHtmlDate(htmlDate: String): Either[Throwable, Date] = {
     // htmlDate is expected to be of the following form
     // "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
 
@@ -57,7 +57,7 @@ object DelcampeTools {
 
       val dateFormat = new SimpleDateFormat("E MMM d yyyy hh:mm aaa")
       dateFormat.parse(curatedDate)
-    }.toOption
+    }.toEither
   }
 
   /**
@@ -65,7 +65,7 @@ object DelcampeTools {
    * @param htmlShortDate A Date of the following form "Nov 15, 2020 at 7:17:06 PM"
    * @return
    */
-  def parseHtmlShortDate(htmlShortDate: String): Option[Date] = {
+  def parseHtmlShortDate(htmlShortDate: String): Either[Throwable, Date] = {
     // htmlDate is expected to be of the following form
     // "Nov 15, 2020 at 7:17:06 PM"
 
@@ -77,7 +77,7 @@ object DelcampeTools {
 
       val dateFormat = new SimpleDateFormat("MMM d yyyy hh:mm:ss aaa")
       dateFormat.parse(curatedDate)
-    }.toOption
+    }.toEither
   }
 
   /**

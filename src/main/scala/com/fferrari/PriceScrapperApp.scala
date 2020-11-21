@@ -3,6 +3,7 @@ package com.fferrari
 import akka.actor.typed.{ActorSystem, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import com.fferrari.PriceScrapperProtocol.{PriceScrapperCommand, ScrapWebsite}
+import com.fferrari.scrapper.Delcampe
 
 object PriceScrapper {
   def apply(): Behavior[PriceScrapperCommand] = {

@@ -2,6 +2,7 @@ package com.fferrari
 
 import java.util.Date
 
+import com.fferrari.scrapper.DelcampeTools
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

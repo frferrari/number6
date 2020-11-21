@@ -1,5 +1,7 @@
 package com.fferrari
 
+import com.fferrari.scrapper.Website
+
 object PriceScrapperProtocol {
 
   sealed trait PriceScrapperCommand
