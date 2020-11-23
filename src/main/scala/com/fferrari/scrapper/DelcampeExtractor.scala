@@ -11,36 +11,42 @@ import net.ruippeixotog.scalascraper.dsl.DSL.{deepFunctorOps, validator, _}
 import net.ruippeixotog.scalascraper.model.Element
 import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementList, text}
 
-sealed trait DelcampeExtractor {
+trait DelcampeExtractor {
 
   val SELLER_LOCATION_LABEL = "Location"
+  val CLOSED_SELL_TAG = "div#closed-sell"
+  // Closed auction
+  val FIXED_TYPE_BIDS_CONTAINER = "div#tab-sales"
+  val BID_TYPE_BIDS_CONTAINER = "div#tab-bids"
+  // Ongoing auction
+  val FIXED_TYPE_BUY_CONTAINER = "div#buy-box"
+  val BID_TYPE_BUY_CONTAINER = "div#bid-box"
 
   type ValidationResult[A] = ValidatedNec[DomainValidation, A]
 
-  def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
-    if ((htmlDoc >/~ validator(attrs("div#confirm_question_modal"))(_.exists(_ == "data-id"))).isRight)
-      (htmlDoc >> attr("data-id")("div#confirm_question_modal")).validNec
-    else
-      IdNotFound.invalidNec
+  def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+    (htmlDoc >?> attr("data-id")("div#confirm_question_modal"))
+      .map(_.validNec)
+      .getOrElse(IdNotFound.invalidNec)
+  }
 
   def validateTitle(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
-    if ((htmlDoc >/~ validator(text("div.item-title h1 span"))(_.nonEmpty)).isRight)
-      (htmlDoc >> text("div.item-title h1 span")).validNec
-    else
-      TitleNotFound.invalidNec
+    (htmlDoc >?> text("div.item-title h1 span"))
+      .map(_.validNec)
+      .getOrElse(TitleNotFound.invalidNec)
 
-  def validateSellerNickname(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
-    if ((htmlDoc >/~ validator(text("div#seller-info div.user-status a.member > span.nickname"))(_.nonEmpty)).isRight)
-      (htmlDoc >> text("div#seller-info div.user-status a.member > span.nickname")).validNec
-    else
-      SellerNicknameNotFound.invalidNec
+  def validateSellerNickname(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+    (htmlDoc >?> text("div#seller-info div.user-status a.member > span.nickname"))
+      .map(_.validNec)
+      .getOrElse(SellerNicknameNotFound.invalidNec)
+  }
 
   def validateSellerLocation(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
     def sellerLocationLabelValidator(li: Element): Boolean =
-      (li >/~ validator(text("strong"))(_.startsWith(SELLER_LOCATION_LABEL))).isRight
+      (li >?> text("strong")).exists(_.startsWith(SELLER_LOCATION_LABEL))
 
     def sellerLocationValueValidator(li: Element): Boolean =
-      (li >/~ validator(text("div"))(_.split(",").nonEmpty)).isRight
+      (li >?> text("div")).exists(_.split(",").nonEmpty)
 
     def sellerLocationLabelAndValueValidator(li: Element): Boolean =
       sellerLocationLabelValidator(li) & sellerLocationValueValidator(li)
@@ -48,75 +54,88 @@ sealed trait DelcampeExtractor {
     def sellerLocationNormalizer(location: String): String =
       location
         .split(",") // A Location can be of the following forms "Italy, Murano" or "Italy"
-        .head
-
-    if ((htmlDoc >/~ validator(elementList("div#seller-info ul li"))(_.exists(sellerLocationLabelAndValueValidator))).isRight)
-      (htmlDoc >> elementList("div#seller-info ul li"))
-        .find(sellerLocationLabelValidator)
-        .map(li => sellerLocationNormalizer(li >> text("div")))
+        .headOption
         .getOrElse("")
-        .validNec
-    else
-      SellerLocationNotFound.invalidNec
+
+    (htmlDoc >> elementList("div#seller-info ul li"))
+      .find(sellerLocationLabelAndValueValidator)
+      .map(_ >> text("div"))
+      .map(sellerLocationNormalizer(_).validNec)
+      .getOrElse(SellerLocationNotFound.invalidNec)
   }
 
-  def validateAuctionType(implicit htmlDoc: JsoupDocument): ValidationResult[AuctionType] =
-    if ((htmlDoc >/~ validator(attr("class")("div.price-info > div > i"))(c => List("fa-gavel", "fa-shipping-cart").contains(c))).isRight)
-      (htmlDoc >> attr("class")("div.price-info > div > i") match {
-        case c if c.contains("fa-gavel") =>
-          BidType
-        case _ =>
-          FixedPriceType
-      }).validNec
-    else
-      AuctionTypeNotFound.invalidNec
+  def validateAuctionType(implicit htmlDoc: JsoupDocument): ValidationResult[AuctionType] = {
+    def isBidType(classes: String): Boolean =
+      classes.split(" ").contains("fa-shopping-cart")
+
+    def isFixedType(classes: String): Boolean =
+      classes.split(" ").contains("fa-gavel")
+
+    def auctionTypeFromClasses(classes: String): ValidationResult[AuctionType] =
+      if (isBidType(classes)) BidType.validNec
+      else if (isFixedType(classes)) FixedPriceType.validNec
+      else AuctionTypeNotFound.invalidNec
+
+    println(htmlDoc >?> attr("class")("div.price-info div i"))
+
+    (htmlDoc >?> attr("class")("div.price-info div i"))
+      .map(auctionTypeFromClasses)
+      .getOrElse(AuctionTypeNotFound.invalidNec)
+  }
 
   def validateIsSold(implicit htmlDoc: JsoupDocument): ValidationResult[Boolean] =
-    (htmlDoc >> elementList("div#closed-sell class.price-box")).nonEmpty.validNec
+    (htmlDoc >> elementList(s"${CLOSED_SELL_TAG} class.price-box")).nonEmpty.validNec
 
-  def validateStartPrice(implicit htmlDoc: JsoupDocument): ValidatedNec[NonEmptyChain[DomainValidation], Price] = {
-    (for {
-      auctionType <- validateAuctionType.toEither
-      isSold <- validateIsSold.toEither
-      tag = startPriceExtractorTag(auctionType, isSold)
-      _ <- htmlPriceValidator(tag).toEither
-      htmlPrice = htmlDoc >> text(tag)
-      priceNec = DelcampeTools.parseHtmlPrice(htmlPrice).toEither
-      price <- priceNec
-    } yield price).toValidatedNec
+  def validateStartPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] = {
+    fetchClosedSellElement match {
+      case Some(closedSell) =>
+        // Closed auction
+        (fetchPurchaseTableElement, fetchBidsTableElement) match {
+          case (Some(_), None) =>
+            // Closed auction, Fixed Price type of auction
+            (closedSell >?> text("span.price"))
+              .map(DelcampeTools.parseHtmlPrice)
+              .getOrElse(StartPriceNotFound.invalidNec)
+          case (None, Some(bidsTable)) =>
+            // Closed auction, Bid type of auction
+            (bidsTable >?> text("div.table-list-line:last-child li:nth-child(2) strong"))
+              .map(DelcampeTools.parseHtmlPrice)
+              .getOrElse(StartPriceNotFound.invalidNec)
+          case _ =>
+            StartPriceNotFound.invalidNec
+        }
+      case None =>
+        // Ongoing auction
+        (fetchBuyContainer, fetchBidContainer) match {
+          case (Some(buyContainer), None) =>
+            // Ongoing auction, Fixed Price type of auction
+            (buyContainer >?> text("span.price"))
+              .map(DelcampeTools.parseHtmlPrice)
+              .getOrElse(StartPriceNotFound.invalidNec)
+          case (None, Some(bidContainer)) =>
+            // Ongoing auction, Bid type of auction
+            (bidContainer >?> text("span.price"))
+              .map(DelcampeTools.parseHtmlPrice)
+              .getOrElse(StartPriceNotFound.invalidNec)
+          case _ =>
+            StartPriceNotFound.invalidNec
+        }
+    }
   }
 
-  def startPriceExtractorTag(auctionType: AuctionType, isSold: Boolean): String =
-    auctionType match {
-      case FixedPriceType if isSold =>
-        "div#closed-sell span.price"
-      case FixedPriceType if !isSold =>
-        "div#buy-box span.price"
-      case BidType if isSold =>
-        "div#tab-bids div.table-list-line:nth-child(1) li:nth-child(2) strong"
-      case _ =>
-        "div#bid-box span.price"
-    }
-
-  def htmlPriceValidator(htmlPriceExtractor: String)(implicit htmlDoc: JsoupDocument): ValidationResult[JsoupDocument] =
-    (htmlDoc >/~ validator(elementList(htmlPriceExtractor))(_.nonEmpty))
-      .map(_.validNec)
-      .getOrElse(StartPriceNotFound.invalidNec)
-
-
   def validateFinalPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Option[Price]] = {
-    val htmlClosedSell: Option[Element] = htmlDoc >?> element("div#closed-sell")
+    val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlPrice: Option[String] = htmlClosedSell.flatMap(_ >?> text("span.price"))
 
     (htmlClosedSell, htmlPrice) match {
-      case (Some(closedSell), Some(price)) =>
+      case (Some(_), Some(price)) =>
         // (OK) The auction is marked as sold and we could extract the price
         DelcampeTools.parseHtmlPrice(price).map(Option.apply)
-      case (Some(closedSell), None) =>
+      case (Some(_), None) =>
         // (KO) The auction is marked as sold but we couldn't extract the price
         FinalPriceNotFound.invalidNec
       case _ =>
-        // (OK) The auction is not marked as sold, no final price as it is not finished yet
+        // (OK) The auction is not marked as sold, there's no final price to extract as it is not finished yet
         None.validNec
     }
   }
@@ -127,13 +146,13 @@ sealed trait DelcampeExtractor {
       .getOrElse(StartDateNotFound.invalidNec)
 
   def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[DomainValidation], Option[Date]] = {
-    val htmlClosedSell: Option[Element] = htmlDoc >?> element("div#closed-sell")
+    val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlEndDate: Option[String] = htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(2) div")
 
     (htmlClosedSell, htmlEndDate) match {
-      case (Some(closedSell), Some(endDate)) =>
+      case (Some(_), Some(endDate)) =>
         DelcampeTools.parseHtmlDate(endDate).map(Option.apply)
-      case (Some(closedSell), None) =>
+      case (Some(_), None) =>
         EndDateNotFound.invalidNec
       case _ =>
         None.validNec
@@ -146,26 +165,41 @@ sealed trait DelcampeExtractor {
       .getOrElse(LargeImageUrlNotFound.invalidNec)
 
   def validateBids(implicit htmlDoc: JsoupDocument): ValidationResult[List[Bid]] = {
-    val htmlClosedSell: Option[Element] = htmlDoc >?> element("div#closed-sell")
-    val htmlPurchaseTable: Option[Element] = htmlDoc >?> element("div#tab-sales")
-    val htmlBidsTable: Option[Element] = htmlDoc >?> element("div#tab-bids")
+    val htmlClosedSell: Option[Element] = fetchClosedSellElement
+    val htmlPurchaseTable: Option[Element] = fetchPurchaseTableElement
+    val htmlBidsTable: Option[Element] = fetchBidsTableElement
 
     (htmlClosedSell, htmlPurchaseTable, htmlBidsTable) match {
-      case (Some(true), Some(true), None) =>
+      case (Some(_), Some(_), None) =>
         fetchFixedPriceTypeBids
-      case (Some(true), None, Some(true)) =>
+      case (Some(_), None, Some(_)) =>
         fetchBidTypeBids
-      case (Some(true), None, None) =>
+      case (Some(_), None, None) =>
         MissingBidsForClosedAuction.invalidNec
       case (None, _, _) =>
         RequestForBidsForOngoingAuction.invalidNec
     }
   }
 
-  def fetchFixedPriceTypeBids(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[DomainValidation], List[Bid]] = {
-    val htmlPurchaseTable: Option[Element] = htmlDoc >?> element("div#tab-sales div.table-view div.table-body ul.table-body-list")
+  def validateBidCount(implicit htmlDoc: JsoupDocument): ValidationResult[Int] = {
+    val htmlClosedSell: Option[Element] = fetchClosedSellElement
+    val htmlPurchaseTable: Option[Element] = fetchPurchaseTableElement
+    val htmlBidsTable: Option[Element] = fetchBidsTableElement
 
-    htmlPurchaseTable
+    (htmlClosedSell, htmlPurchaseTable, htmlBidsTable) match {
+      case (Some(_), Some(_), None) =>
+        1.validNec
+      case (Some(_), None, Some(bidsTable)) =>
+        (bidsTable >?> elementList("div.bids-container div.bids div.table-list-line"))
+          .map(_.size.validNec)
+          .getOrElse(BidsContainerNotFound.invalidNec)
+      case _ =>
+        0.validNec
+    }
+  }
+
+  def fetchFixedPriceTypeBids(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[DomainValidation], List[Bid]] = {
+    (htmlDoc >?> element(s"${FIXED_TYPE_BIDS_CONTAINER} div.table-view div.table-body ul.table-body-list"))
       .map { purchase =>
         val htmlNickname: ValidationResult[String] = fetchFixedPriceTypeNickname(purchase)
         val htmlPrice: ValidationResult[Price] = fetchFixedPriceTypePrice
@@ -184,7 +218,8 @@ sealed trait DelcampeExtractor {
       .getOrElse(BidderNicknameNotFound.invalidNec)
 
   def fetchFixedPriceTypePrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] =
-    (htmlDoc >?> text("div#closed-sell span.price"))
+    fetchClosedSellElement
+      .flatMap(_ >?> text("span.price"))
       .map(DelcampeTools.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
@@ -206,7 +241,7 @@ sealed trait DelcampeExtractor {
   }
 
   def fetchBidTypeBids(implicit htmlDoc: JsoupDocument): ValidationResult[List[Bid]] = {
-    val htmlBidsTable: Option[List[Element]] = htmlDoc >?> elementList("div#tab-bids div.bids-container ul.table-body-list")
+    val htmlBidsTable: Option[List[Element]] = htmlDoc >?> elementList(s"${BID_TYPE_BIDS_CONTAINER} div.bids-container ul.table-body-list")
 
     htmlBidsTable match {
       case Some(bids) =>
@@ -242,4 +277,19 @@ sealed trait DelcampeExtractor {
     (bid >?> text("li:nth-child(3)"))
       .map(DelcampeTools.parseHtmlShortDate)
       .getOrElse(BidDateNotFound.invalidNec)
+
+  def fetchClosedSellElement(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(CLOSED_SELL_TAG)
+
+  def fetchPurchaseTableElement(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(FIXED_TYPE_BIDS_CONTAINER)
+
+  def fetchBidsTableElement(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(BID_TYPE_BIDS_CONTAINER)
+
+  def fetchBidContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(BID_TYPE_BUY_CONTAINER)
+
+  def fetchBuyContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(FIXED_TYPE_BUY_CONTAINER)
 }

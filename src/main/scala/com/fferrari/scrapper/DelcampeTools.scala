@@ -3,14 +3,16 @@ package com.fferrari.scrapper
 import java.text.SimpleDateFormat
 import java.util.Date
 
-import cats.data.ValidatedNec
 import com.fferrari.model.Price
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Random, Success, Try}
+import scala.concurrent.duration._
+import scala.util.matching.Regex
+
+import cats.data.ValidatedNec
 import cats.implicits._
 
-import scala.util.matching.Regex
 
 object DelcampeTools {
   val rnd: Random.type = scala.util.Random

@@ -4,9 +4,10 @@ import java.util.Date
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
+import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.scrapper.DelcampeTools.randomDurationMs
 import com.fferrari.PriceScrapperProtocol._
-import com.fferrari.scrapper.{AuctionScrapper, Delcampe, DelcampeScrapper}
+import com.fferrari.scrapper.{AuctionScrapper, Delcampe, DelcampeExtractor, DelcampeScrapper}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -39,7 +40,7 @@ object AuctionScrapperActor {
 
           websiteInfos match {
             case websiteInfo :: remainingWebsiteInfos =>
-              val auctionScrapper = new DelcampeScrapper
+              val auctionScrapper = new DelcampeScrapper with DelcampeExtractor
               context.self ! ExtractAuctionUrls(websiteInfo, List(), 1)
               processAuctionUrls(remainingWebsiteInfos, auctionScrapper)
           }
@@ -74,7 +75,12 @@ object AuctionScrapperActor {
           auctionUrls match {
             case auctionUrl :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: $auctionUrl")
-              auctionScrapper.fetchAuction(auctionUrl)
+              auctionScrapper.fetchAuction(auctionUrl) match {
+                case Valid(v) =>
+                  println("====> Auction fetched successfully")
+                case Invalid(n) =>
+                  println(s"====> $n")
+              }
               timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
 
             case _ =>

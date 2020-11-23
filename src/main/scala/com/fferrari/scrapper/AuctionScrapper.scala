@@ -1,10 +1,8 @@
 package com.fferrari.scrapper
 
-import java.util.Date
-
-import cats.data.Validated
+import cats.data.{NonEmptyChain, Validated}
 import com.fferrari.PriceScrapperProtocol.WebsiteInfo
-import com.fferrari.model.{Auction, Bid, Price}
+import com.fferrari.model.Auction
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -26,31 +24,5 @@ abstract class AuctionScrapper {
   def fetchListingPageUrls(websiteInfo: WebsiteInfo)
                           (implicit htmlDoc: JsoupDocument): List[String]
 
-  def fetchAuction[A <: Auction](auctionUrl: String)(implicit jsoupBrowser: JsoupBrowser): Either[String, A]
-
-  def fetchId(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, String]
-
-  def fetchTitle(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, String]
-
-  def fetchSellerNickname(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, String]
-
-  def fetchSellerLocation(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, String]
-
-  def fetchAuctionType(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, AuctionType]
-
-  def fetchIsSold(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Boolean]
-
-  def fetchStartPrice(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Price]
-
-  def fetchFinalPrice(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Option[Price]]
-
-  def fetchStartDate(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Date]
-
-  def fetchEndDate(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Option[Date]]
-
-  def fetchBids(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, List[Bid]]
-
-  def fetchLargeImageUrl(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, String]
-
-  def fetchBidCount(implicit htmlDoc: JsoupDocument): Validated[DomainValidation, Int]
+  def fetchAuction(auctionUrl: String)(implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[DomainValidation], Auction]
 }

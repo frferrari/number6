@@ -2,6 +2,8 @@ package com.fferrari.model
 
 import java.util.Date
 
+import com.fferrari.scrapper.{AuctionType, BidType, FixedPriceType}
+
 sealed trait Auction {
   val id: String
   val title: String
@@ -13,6 +15,27 @@ sealed trait Auction {
   val startDate: Date
   val endDate: Option[Date]
   val largeImageUrl: String
+}
+
+object Auction {
+  def apply(auctionType: AuctionType,
+            id: String,
+            title: String,
+            isSold: Boolean,
+            sellerNickname: String,
+            sellerLocation: String,
+            startPrice: Price,
+            finalPrice: Option[Price],
+            startDate: Date,
+            endDate: Option[Date],
+            largeImageUrl: String,
+            bids: List[Bid]): Auction =
+    auctionType match {
+      case BidType =>
+        AuctionBid(id, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids)
+      case FixedPriceType =>
+        AuctionFixedPrice(id, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids.headOption)
+    }
 }
 
 final case class AuctionBid(id: String,
@@ -37,4 +60,4 @@ final case class AuctionFixedPrice(id: String,
                                    startDate: Date,
                                    endDate: Option[Date],
                                    largeImageUrl: String,
-                                   bids: Bid) extends Auction
+                                   bid: Option[Bid]) extends Auction
