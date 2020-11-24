@@ -1,17 +1,21 @@
-package com.fferrari.scrapper
+package com.fferrari.validation
 
-import java.util.Date
+import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.model.{Bid, Price}
+import com.fferrari.PriceScrapperProtocol.WebsiteInfo
+import com.fferrari.model._
+import com.fferrari.scrapper.DelcampeTools
+import com.fferrari.scrapper.DelcampeTools.relativeToAbsoluteUrl
+import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
-import net.ruippeixotog.scalascraper.dsl.DSL.{deepFunctorOps, validator, _}
+import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.model.Element
 import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementList, text}
 
-trait DelcampeExtractor {
+class DelcampeValidator extends AuctionValidator {
 
   val SELLER_LOCATION_LABEL = "Location"
   val CLOSED_SELL_TAG = "div#closed-sell"
@@ -19,29 +23,56 @@ trait DelcampeExtractor {
   val FIXED_TYPE_BIDS_CONTAINER = "div#tab-sales"
   val BID_TYPE_BIDS_CONTAINER = "div#tab-bids"
   // Ongoing auction
-  val FIXED_TYPE_BUY_CONTAINER = "div#buy-box"
-  val BID_TYPE_BUY_CONTAINER = "div#bid-box"
+  val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
+  val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  type ValidationResult[A] = ValidatedNec[DomainValidation, A]
+  override def fetchListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
+                               (implicit jsoupBrowser: JsoupBrowser): JsoupDocument =
+    jsoupBrowser.get(s"${websiteInfo.url}&size=$itemsPerPage&page=$pageNumber")
 
-  def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+  override def fetchListingPageUrls(websiteInfo: WebsiteInfo)
+                                   (implicit htmlDoc: JsoupDocument): List[String] = {
+
+    val containerOfUrls: ValidationResult[Element] =
+      (htmlDoc >?> element(".item-listing .item-main-infos div.item-info"))
+        .map(_.validNec)
+        .getOrElse(ContainerOfUrlsNotFound.invalidNec)
+
+    // Extract all the auction urls
+    val htmlAuctionUrls: List[String] =
+      for {
+        htmlItem <- htmlDoc >> elementList(".item-listing .item-main-infos")
+        htmlItemInfo = htmlItem >> element("div.item-info")
+        htmlAuctionUrl = relativeToAbsoluteUrl(websiteInfo.url, htmlItemInfo >> element("a") >> attr("href"))
+      } yield htmlAuctionUrl
+
+    // Keep only the auction urls that have not yet been processed (since the last run)
+    websiteInfo.lastScrappedUrl match {
+      case Some(url) if htmlAuctionUrls.contains(url) =>
+        htmlAuctionUrls.takeWhile(_ != url)
+      case _ =>
+        htmlAuctionUrls
+    }
+  }
+
+  override def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
     (htmlDoc >?> attr("data-id")("div#confirm_question_modal"))
       .map(_.validNec)
       .getOrElse(IdNotFound.invalidNec)
   }
 
-  def validateTitle(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
+  override def validateTitle(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
     (htmlDoc >?> text("div.item-title h1 span"))
       .map(_.validNec)
       .getOrElse(TitleNotFound.invalidNec)
 
-  def validateSellerNickname(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+  override def validateSellerNickname(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
     (htmlDoc >?> text("div#seller-info div.user-status a.member > span.nickname"))
       .map(_.validNec)
       .getOrElse(SellerNicknameNotFound.invalidNec)
   }
 
-  def validateSellerLocation(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+  override def validateSellerLocation(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
     def sellerLocationLabelValidator(li: Element): Boolean =
       (li >?> text("strong")).exists(_.startsWith(SELLER_LOCATION_LABEL))
 
@@ -64,29 +95,27 @@ trait DelcampeExtractor {
       .getOrElse(SellerLocationNotFound.invalidNec)
   }
 
-  def validateAuctionType(implicit htmlDoc: JsoupDocument): ValidationResult[AuctionType] = {
+  override def validateAuctionType(implicit htmlDoc: JsoupDocument): ValidationResult[AuctionType] = {
     def isBidType(classes: String): Boolean =
-      classes.split(" ").contains("fa-shopping-cart")
+      classes.split(" ").contains("fa-gavel")
 
     def isFixedType(classes: String): Boolean =
-      classes.split(" ").contains("fa-gavel")
+      classes.split(" ").contains("fa-shopping-cart")
 
     def auctionTypeFromClasses(classes: String): ValidationResult[AuctionType] =
       if (isBidType(classes)) BidType.validNec
       else if (isFixedType(classes)) FixedPriceType.validNec
       else AuctionTypeNotFound.invalidNec
 
-    println(htmlDoc >?> attr("class")("div.price-info div i"))
-
     (htmlDoc >?> attr("class")("div.price-info div i"))
       .map(auctionTypeFromClasses)
       .getOrElse(AuctionTypeNotFound.invalidNec)
   }
 
-  def validateIsSold(implicit htmlDoc: JsoupDocument): ValidationResult[Boolean] =
-    (htmlDoc >> elementList(s"${CLOSED_SELL_TAG} class.price-box")).nonEmpty.validNec
+  override def validateIsSold(implicit htmlDoc: JsoupDocument): ValidationResult[Boolean] =
+    (htmlDoc >?> elementList(s"${CLOSED_SELL_TAG}.price-box")).nonEmpty.validNec
 
-  def validateStartPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] = {
+  override def validateStartPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] = {
     fetchClosedSellElement match {
       case Some(closedSell) =>
         // Closed auction
@@ -106,7 +135,7 @@ trait DelcampeExtractor {
         }
       case None =>
         // Ongoing auction
-        (fetchBuyContainer, fetchBidContainer) match {
+        (fetchFixedTypePriceContainer, fetchBidTypePriceContainer) match {
           case (Some(buyContainer), None) =>
             // Ongoing auction, Fixed Price type of auction
             (buyContainer >?> text("span.price"))
@@ -123,7 +152,7 @@ trait DelcampeExtractor {
     }
   }
 
-  def validateFinalPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Option[Price]] = {
+  override def validateFinalPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Option[Price]] = {
     val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlPrice: Option[String] = htmlClosedSell.flatMap(_ >?> text("span.price"))
 
@@ -140,12 +169,12 @@ trait DelcampeExtractor {
     }
   }
 
-  def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[Date] =
+  override def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[LocalDateTime] =
     (htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(1) div"))
       .map(DelcampeTools.parseHtmlDate)
       .getOrElse(StartDateNotFound.invalidNec)
 
-  def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[DomainValidation], Option[Date]] = {
+  override def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[LocalDateTime]] = {
     val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlEndDate: Option[String] = htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(2) div")
 
@@ -159,20 +188,20 @@ trait DelcampeExtractor {
     }
   }
 
-  def validateLargeImageUrl(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
+  override def validateLargeImageUrl(implicit htmlDoc: JsoupDocument): ValidationResult[String] =
     (htmlDoc >?> attr("src")("div.item-thumbnails img.img-lense"))
       .map(_.validNec)
       .getOrElse(LargeImageUrlNotFound.invalidNec)
 
-  def validateBids(implicit htmlDoc: JsoupDocument): ValidationResult[List[Bid]] = {
+  override def validateBids(implicit htmlDoc: JsoupDocument): ValidationResult[List[Bid]] = {
     val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlPurchaseTable: Option[Element] = fetchPurchaseTableElement
     val htmlBidsTable: Option[Element] = fetchBidsTableElement
 
     (htmlClosedSell, htmlPurchaseTable, htmlBidsTable) match {
-      case (Some(_), Some(_), None) =>
+      case (Some(_), Some(_), _) =>
         fetchFixedPriceTypeBids
-      case (Some(_), None, Some(_)) =>
+      case (Some(_), _, Some(_)) =>
         fetchBidTypeBids
       case (Some(_), None, None) =>
         MissingBidsForClosedAuction.invalidNec
@@ -181,7 +210,7 @@ trait DelcampeExtractor {
     }
   }
 
-  def validateBidCount(implicit htmlDoc: JsoupDocument): ValidationResult[Int] = {
+  override def validateBidCount(implicit htmlDoc: JsoupDocument): ValidationResult[Int] = {
     val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlPurchaseTable: Option[Element] = fetchPurchaseTableElement
     val htmlBidsTable: Option[Element] = fetchBidsTableElement
@@ -198,13 +227,13 @@ trait DelcampeExtractor {
     }
   }
 
-  def fetchFixedPriceTypeBids(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[DomainValidation], List[Bid]] = {
+  def fetchFixedPriceTypeBids(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[Bid]] = {
     (htmlDoc >?> element(s"${FIXED_TYPE_BIDS_CONTAINER} div.table-view div.table-body ul.table-body-list"))
       .map { purchase =>
-        val htmlNickname: ValidationResult[String] = fetchFixedPriceTypeNickname(purchase)
-        val htmlPrice: ValidationResult[Price] = fetchFixedPriceTypePrice
-        val htmlBidQuantity: ValidationResult[Int] = fetchFixedPriceTypeQuantity(purchase)
-        val htmlPurchaseDate: ValidationResult[Date] = fetchFixedPriceTypeDate(purchase)
+        val htmlNickname: ValidationResult[String] = fetchFixedPriceTypePurchaseNickname(purchase)
+        val htmlPrice: ValidationResult[Price] = fetchFixedPriceTypePurchasePrice
+        val htmlBidQuantity: ValidationResult[Int] = fetchFixedPriceTypePurchaseQuantity(purchase)
+        val htmlPurchaseDate: ValidationResult[LocalDateTime] = fetchFixedPriceTypePurchaseDate(purchase)
 
         (htmlNickname, htmlPrice, htmlBidQuantity, false.validNec, htmlPurchaseDate)
           .mapN(Bid)
@@ -212,23 +241,23 @@ trait DelcampeExtractor {
       }.getOrElse(BidsContainerNotFound.invalidNec)
   }
 
-  def fetchFixedPriceTypeNickname(bid: Element): ValidationResult[String] =
+  def fetchFixedPriceTypePurchaseNickname(bid: Element): ValidationResult[String] =
     (bid >?> text("li:nth-child(1) span"))
       .map(_.validNec)
       .getOrElse(BidderNicknameNotFound.invalidNec)
 
-  def fetchFixedPriceTypePrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] =
+  def fetchFixedPriceTypePurchasePrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] =
     fetchClosedSellElement
       .flatMap(_ >?> text("span.price"))
       .map(DelcampeTools.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
-  def fetchFixedPriceTypeQuantity(bid: Element): ValidationResult[Int] =
+  def fetchFixedPriceTypePurchaseQuantity(bid: Element): ValidationResult[Int] =
     (bid >?> text("li:nth-child(2)"))
       .map(DelcampeTools.parseHtmlQuantity)
       .getOrElse(InvalidBidQuantity.invalidNec)
 
-  def fetchFixedPriceTypeDate(bid: Element): ValidationResult[Date] = {
+  def fetchFixedPriceTypePurchaseDate(bid: Element): ValidationResult[LocalDateTime] = {
     val htmlPurchaseDate: Option[String] = bid >?> text("li:nth-child(3)")
     val htmlPurchaseTime: Option[String] = bid >?> text("li:nth-child(4)")
 
@@ -246,10 +275,10 @@ trait DelcampeExtractor {
     htmlBidsTable match {
       case Some(bids) =>
         bids.map { bid =>
-          val htmlNickname: ValidationResult[String] = fetchBidTypeNickname(bid)
-          val isAutomaticBid: ValidationResult[Boolean] = fetchBidTypeIsAutomatic(bid)
-          val htmlPrice: ValidationResult[Price] = fetchBidTypePrice(bid)
-          val htmlBidDate: ValidationResult[Date] = fetchBidTypeDate(bid)
+          val htmlNickname: ValidationResult[String] = fetchBidTypeBidderNickname(bid)
+          val isAutomaticBid: ValidationResult[Boolean] = fetchBidTypeIsAutomaticBid(bid)
+          val htmlPrice: ValidationResult[Price] = fetchBidTypeBidPrice(bid)
+          val htmlBidDate: ValidationResult[LocalDateTime] = fetchBidTypeBidDate(bid)
 
           (htmlNickname, htmlPrice, 1.validNec, isAutomaticBid, htmlBidDate).mapN(Bid)
         }.sequence
@@ -258,22 +287,22 @@ trait DelcampeExtractor {
     }
   }
 
-  def fetchBidTypeNickname(bid: Element): ValidationResult[String] =
+  def fetchBidTypeBidderNickname(bid: Element): ValidationResult[String] =
     (bid >?> text("li:nth-child(1) span.nickname"))
       .map(_.validNec)
       .getOrElse(BidderNicknameNotFound.invalidNec)
 
-  def fetchBidTypeIsAutomatic(bid: Element): ValidationResult[Boolean] =
+  def fetchBidTypeIsAutomaticBid(bid: Element): ValidationResult[Boolean] =
     (bid >?> text("li:nth-child(2) span"))
       .map(automatic => (automatic == "automatic").validNec)
       .getOrElse(false.validNec)
 
-  def fetchBidTypePrice(bid: Element): ValidationResult[Price] =
+  def fetchBidTypeBidPrice(bid: Element): ValidationResult[Price] =
     (bid >?> text("li:nth-child(2) strong"))
       .map(DelcampeTools.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
-  def fetchBidTypeDate(bid: Element): ValidationResult[Date] =
+  def fetchBidTypeBidDate(bid: Element): ValidationResult[LocalDateTime] =
     (bid >?> text("li:nth-child(3)"))
       .map(DelcampeTools.parseHtmlShortDate)
       .getOrElse(BidDateNotFound.invalidNec)
@@ -287,9 +316,9 @@ trait DelcampeExtractor {
   def fetchBidsTableElement(implicit htmlDoc: JsoupDocument): Option[Element] =
     htmlDoc >?> element(BID_TYPE_BIDS_CONTAINER)
 
-  def fetchBidContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
-    htmlDoc >?> element(BID_TYPE_BUY_CONTAINER)
+  def fetchBidTypePriceContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(BID_TYPE_PRICE_CONTAINER)
 
-  def fetchBuyContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
-    htmlDoc >?> element(FIXED_TYPE_BUY_CONTAINER)
+  def fetchFixedTypePriceContainer(implicit htmlDoc: JsoupDocument): Option[Element] =
+    htmlDoc >?> element(FIXED_TYPE_PRICE_CONTAINER)
 }

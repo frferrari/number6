@@ -1,5 +1,9 @@
 package com.fferrari.model
 
-import java.util.Date
+import java.time.LocalDateTime
 
-case class Bid(nickname: String, bidPrice: Price, quantity: Int, isAutomaticBid: Boolean, bidAt: Date)
+case class Bid(nickname: String,
+               bidPrice: Price,
+               quantity: Int,
+               isAutomaticBid: Boolean,
+               bidAt: LocalDateTime)

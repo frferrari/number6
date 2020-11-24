@@ -1,6 +1,6 @@
 package com.fferrari
 
-import com.fferrari.scrapper.Website
+import com.fferrari.model.Website
 
 object PriceScrapperProtocol {
 

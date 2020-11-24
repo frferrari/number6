@@ -6,6 +6,10 @@ scalaVersion := "2.13.1"
 
 lazy val akkaVersion = "2.6.10"
 
+testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oD")
+
+logBuffered in Test := false
+
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
   "ch.qos.logback" % "logback-classic" % "1.2.3",

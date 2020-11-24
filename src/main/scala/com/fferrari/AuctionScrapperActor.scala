@@ -5,9 +5,10 @@ import java.util.Date
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.scrapper.DelcampeTools.randomDurationMs
 import com.fferrari.PriceScrapperProtocol._
-import com.fferrari.scrapper.{AuctionScrapper, Delcampe, DelcampeExtractor, DelcampeScrapper}
+import com.fferrari.model.Delcampe
+import com.fferrari.scrapper.DelcampeTools.randomDurationMs
+import com.fferrari.validation.{AuctionValidator, DelcampeValidator}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -40,7 +41,7 @@ object AuctionScrapperActor {
 
           websiteInfos match {
             case websiteInfo :: remainingWebsiteInfos =>
-              val auctionScrapper = new DelcampeScrapper with DelcampeExtractor
+              val auctionScrapper = new DelcampeValidator
               context.self ! ExtractAuctionUrls(websiteInfo, List(), 1)
               processAuctionUrls(remainingWebsiteInfos, auctionScrapper)
           }
@@ -48,16 +49,16 @@ object AuctionScrapperActor {
     }
 
   private def processAuctionUrls(websiteInfos: Seq[WebsiteInfo],
-                                 auctionScrapper: AuctionScrapper): Behavior[PriceScrapperCommand] =
+                                 auctionValidator: AuctionValidator): Behavior[PriceScrapperCommand] =
     Behaviors.withTimers[PriceScrapperCommand] { timers =>
       Behaviors.receivePartial {
 
         case (context, ExtractAuctionUrls(websiteInfo, auctionUrls, pageNumber)) =>
 
           context.log.info(s"Scraping URL: $websiteInfo")
-          val jsoupDocument: JsoupDocument = auctionScrapper.fetchListingPage(websiteInfo, 480, pageNumber)
+          val jsoupDocument: JsoupDocument = auctionValidator.fetchListingPage(websiteInfo, 480, pageNumber)
 
-          auctionScrapper.fetchListingPageUrls(websiteInfo)(jsoupDocument) match {
+          auctionValidator.fetchListingPageUrls(websiteInfo)(jsoupDocument) match {
             case urls@h :: t =>
               // We schedule the next extraction so that we don't query the website too frequently
               // urls.foreach { url => context.log.info(s"==> ExtractAuctions $url") }
@@ -75,7 +76,7 @@ object AuctionScrapperActor {
           auctionUrls match {
             case auctionUrl :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: $auctionUrl")
-              auctionScrapper.fetchAuction(auctionUrl) match {
+              auctionValidator.validateAuction(auctionUrl) match {
                 case Valid(v) =>
                   println("====> Auction fetched successfully")
                 case Invalid(n) =>
@@ -83,8 +84,11 @@ object AuctionScrapperActor {
               }
               timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
 
+              // processAuctionUrls(websiteInfos, auctionValidator)
+
             case _ =>
               timers.startSingleTimer(ExtractUrls, randomDurationMs())
+
           }
 
           Behaviors.same

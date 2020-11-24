@@ -1,8 +1,6 @@
 package com.fferrari.model
 
-import java.util.Date
-
-import com.fferrari.scrapper.{AuctionType, BidType, FixedPriceType}
+import java.time.LocalDateTime
 
 sealed trait Auction {
   val id: String
@@ -12,8 +10,8 @@ sealed trait Auction {
   val sellerLocation: String
   val startPrice: Price
   val finalPrice: Option[Price]
-  val startDate: Date
-  val endDate: Option[Date]
+  val startDate: LocalDateTime
+  val endDate: Option[LocalDateTime]
   val largeImageUrl: String
 }
 
@@ -26,8 +24,8 @@ object Auction {
             sellerLocation: String,
             startPrice: Price,
             finalPrice: Option[Price],
-            startDate: Date,
-            endDate: Option[Date],
+            startDate: LocalDateTime,
+            endDate: Option[LocalDateTime],
             largeImageUrl: String,
             bids: List[Bid]): Auction =
     auctionType match {
@@ -45,8 +43,8 @@ final case class AuctionBid(id: String,
                             sellerLocation: String,
                             startPrice: Price,
                             finalPrice: Option[Price],
-                            startDate: Date,
-                            endDate: Option[Date],
+                            startDate: LocalDateTime,
+                            endDate: Option[LocalDateTime],
                             largeImageUrl: String,
                             bids: List[Bid]) extends Auction
 
@@ -57,7 +55,7 @@ final case class AuctionFixedPrice(id: String,
                                    sellerLocation: String,
                                    startPrice: Price,
                                    finalPrice: Option[Price],
-                                   startDate: Date,
-                                   endDate: Option[Date],
+                                   startDate: LocalDateTime,
+                                   endDate: Option[LocalDateTime],
                                    largeImageUrl: String,
                                    bid: Option[Bid]) extends Auction

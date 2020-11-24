@@ -1,23 +1,23 @@
 package com.fferrari.scrapper
 
-import java.text.SimpleDateFormat
-import java.util.Date
-
-import com.fferrari.model.Price
-
-import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Random, Success, Try}
-import scala.concurrent.duration._
-import scala.util.matching.Regex
+import java.time.LocalDateTime
 
 import cats.data.ValidatedNec
 import cats.implicits._
+import com.fferrari.model.Price
+import com.fferrari.validation._
 
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.util.matching.Regex
+import scala.util.{Failure, Random, Success, Try}
 
 object DelcampeTools {
   val rnd: Random.type = scala.util.Random
-  val dateFormat: SimpleDateFormat = new SimpleDateFormat("E MMM d yyyy hh:mm aaa")
-  val shortDateFormat: SimpleDateFormat = new SimpleDateFormat("MMM d yyyy hh:mm:ss aaa")
+
+  import java.time.format.DateTimeFormatter
+
+  val dateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE MMMM d y h:m a")
+  val shortDateFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d y h:m:s a")
   val priceRegex: Regex = "([^0-9\\.]+)([0-9\\.]+)".r
 
   /**
@@ -25,7 +25,7 @@ object DelcampeTools {
    * @param htmlPrice A string containing a currency and a price of the following form: €2.75
    * @return
    */
-  def parseHtmlPrice(htmlPrice: String): ValidatedNec[DomainValidation, Price] = {
+  def parseHtmlPrice(htmlPrice: String): ValidatedNec[AuctionDomainValidation, Price] = {
     def parsePrice(htmlPrice: String): Price = {
       val priceRegex(currency, price) = htmlPrice
       Price(BigDecimal(price), normalizeCurrency(currency))
@@ -37,18 +37,6 @@ object DelcampeTools {
     }
   }
 
-  def parseHtmlPrice2(htmlPrice: String): Either[DomainValidation, Price] = {
-    def parsePrice(htmlPrice: String): Price = {
-      val priceRegex(currency, price) = htmlPrice
-      Price(BigDecimal(price), normalizeCurrency(currency))
-    }
-
-    Either.cond(
-      Try(parsePrice(htmlPrice)).isSuccess,
-      parsePrice(htmlPrice),
-      InvalidPriceFormat
-    )
-  }
 
   /**
    * Normalizes the given currency to a list of known and handled currencies
@@ -67,7 +55,7 @@ object DelcampeTools {
    * @param htmlDate A Date of the follawing form "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
    * @return
    */
-  def parseHtmlDate(htmlDate: String): ValidatedNec[DomainValidation, Date] = {
+  def parseHtmlDate(htmlDate: String): ValidatedNec[AuctionDomainValidation, LocalDateTime] = {
     // htmlDate is expected to be of the following form
     // "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
 
@@ -78,7 +66,7 @@ object DelcampeTools {
       .replace(".", "")
       .replace(",", "")
 
-    Try(dateFormat.parse(curatedDate))
+    Try(LocalDateTime.parse(curatedDate, dateFormat))
       .map(_.validNec)
       .getOrElse(InvalidDateFormat.invalidNec)
   }
@@ -88,7 +76,7 @@ object DelcampeTools {
    * @param htmlShortDate A Date of the following form "Nov 15, 2020 at 7:17:06 PM"
    * @return
    */
-  def parseHtmlShortDate(htmlShortDate: String): ValidatedNec[DomainValidation, Date] = {
+  def parseHtmlShortDate(htmlShortDate: String): ValidatedNec[AuctionDomainValidation, LocalDateTime] = {
     // htmlDate is expected to be of the following form
     // "Nov 15, 2020 at 7:17:06 PM"
 
@@ -97,7 +85,7 @@ object DelcampeTools {
         .replace(" at ", " ")
         .replace(",", "")
 
-    Try(shortDateFormat.parse(curatedDate))
+    Try(LocalDateTime.parse(curatedDate, shortDateFormat))
       .map(_.validNec)
       .getOrElse(InvalidShortDateFormat.invalidNec)
   }
@@ -107,7 +95,7 @@ object DelcampeTools {
    * @param htmlQuantity The quantity of items purchased expressed like "1 item"
    * @return
    */
-  def parseHtmlQuantity(htmlQuantity: String): ValidatedNec[DomainValidation, Int] = {
+  def parseHtmlQuantity(htmlQuantity: String): ValidatedNec[AuctionDomainValidation, Int] = {
     val quantityRegex = "([0-9]+) item.*".r
 
     Try {

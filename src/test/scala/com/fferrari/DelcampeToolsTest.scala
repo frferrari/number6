@@ -7,6 +7,7 @@ import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+/*
 class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
   "A valid short date (PM time)" should "be converted properly" in {
     val result: Option[Date] = DelcampeTools.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 PM")
@@ -113,3 +114,4 @@ class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
     assert(DelcampeTools.parseHtmlQuantity("2 items").contains(2))
   }
 }
+*/
