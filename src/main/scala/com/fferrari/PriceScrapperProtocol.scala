@@ -7,7 +7,7 @@ object PriceScrapperProtocol {
   sealed trait PriceScrapperCommand
   final case class ScrapWebsite(website: Website) extends PriceScrapperCommand
   final case object ExtractUrls extends PriceScrapperCommand
-  final case class ExtractAuctionUrls(websiteInfo: WebsiteInfo, auctionUrls: Seq[String], pageNumber: Int = 1) extends PriceScrapperCommand
+  final case object ExtractAuctionUrls extends PriceScrapperCommand
   final case class ExtractAuctions(auctionUrls: Seq[String]) extends PriceScrapperCommand
   final case class CreateAuction(id: String,
                                  url: String,

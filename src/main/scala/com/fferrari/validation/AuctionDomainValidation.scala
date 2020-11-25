@@ -96,5 +96,21 @@ case object LargeImageUrlNotFound extends AuctionDomainValidation {
 }
 
 case object ContainerOfUrlsNotFound extends AuctionDomainValidation {
-  override def errorMessage: String = "The container of URLs coult not be fetched"
+  override def errorMessage: String = "The container of URLs could not be fetched"
+}
+
+case object AuctionLinkNotFound extends AuctionDomainValidation {
+  override def errorMessage: String = "The auction link could not be fetched"
+}
+
+case object ListingPageNotFound extends AuctionDomainValidation {
+  override def errorMessage: String = "The listing page could not be fetched"
+}
+
+case object MaximumNumberOfAllowedPagesReached extends AuctionDomainValidation {
+  override def errorMessage: String = "The maximum number of allowed page to fetch has been reached"
+}
+
+case object LastListingPageReached extends AuctionDomainValidation {
+  override def errorMessage: String = "No more pages to fetch"
 }

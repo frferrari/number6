@@ -15,6 +15,8 @@ import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.model.Element
 import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementList, text}
 
+import scala.util.Try
+
 class DelcampeValidator extends AuctionValidator {
 
   val SELLER_LOCATION_LABEL = "Location"
@@ -26,33 +28,48 @@ class DelcampeValidator extends AuctionValidator {
   val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
   val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  override def fetchListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
-                               (implicit jsoupBrowser: JsoupBrowser): JsoupDocument =
-    jsoupBrowser.get(s"${websiteInfo.url}&size=$itemsPerPage&page=$pageNumber")
+  override def validateListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
+                                  (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
+    def checkPageValidity(htmlDoc: JsoupDocument): ValidationResult[JsoupDocument] = {
+      if ((htmlDoc >> texts("div.items.main div h2"))
+        .toList
+        .exists(_.contains("You have reached the limit of results to display")))
+        MaximumNumberOfAllowedPagesReached.invalidNec
+      else if ((htmlDoc >> elementList("div.items.main div.item-listing > div")).isEmpty)
+        LastListingPageReached.invalidNec
+      else
+        htmlDoc.validNec
+    }
 
-  override def fetchListingPageUrls(websiteInfo: WebsiteInfo)
-                                   (implicit htmlDoc: JsoupDocument): List[String] = {
+    Try(jsoupBrowser.get(s"${websiteInfo.url}&size=$itemsPerPage&page=$pageNumber"))
+      .map(checkPageValidity)
+      .getOrElse(ListingPageNotFound.invalidNec)
+  }
 
-    val containerOfUrls: ValidationResult[Element] =
-      (htmlDoc >?> element(".item-listing .item-main-infos div.item-info"))
-        .map(_.validNec)
-        .getOrElse(ContainerOfUrlsNotFound.invalidNec)
+  override def validateAuctionUrls(websiteInfo: WebsiteInfo)
+                                  (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[String]] = {
 
-    // Extract all the auction urls
-    val htmlAuctionUrls: List[String] =
-      for {
-        htmlItem <- htmlDoc >> elementList(".item-listing .item-main-infos")
-        htmlItemInfo = htmlItem >> element("div.item-info")
-        htmlAuctionUrl = relativeToAbsoluteUrl(websiteInfo.url, htmlItemInfo >> element("a") >> attr("href"))
-      } yield htmlAuctionUrl
+    def fetchLink(el: Element): ValidationResult[String] = {
+      (el >?> attr("href"))
+        .map(link => relativeToAbsoluteUrl(websiteInfo.url, link).validNec)
+        .getOrElse(AuctionLinkNotFound.invalidNec)
+    }
+
+    val htmlAuctionUrls: ValidationResult[List[String]] =
+      (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos div.item-info a.item-link"))
+        .map(fetchLink)
+        .sequence
 
     // Keep only the auction urls that have not yet been processed (since the last run)
-    websiteInfo.lastScrappedUrl match {
-      case Some(url) if htmlAuctionUrls.contains(url) =>
-        htmlAuctionUrls.takeWhile(_ != url)
-      case _ =>
-        htmlAuctionUrls
-    }
+    htmlAuctionUrls
+      .map { urls =>
+        websiteInfo.lastScrappedUrl match {
+          case Some(lastScrappedUrl) if urls.contains(lastScrappedUrl) =>
+            urls.takeWhile(_ != lastScrappedUrl)
+          case _ =>
+            urls
+        }
+      }
   }
 
   override def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {

@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 
 sealed trait Auction {
   val id: String
+  val url: String
   val title: String
   val isSold: Boolean
   val sellerNickname: String
@@ -18,6 +19,7 @@ sealed trait Auction {
 object Auction {
   def apply(auctionType: AuctionType,
             id: String,
+            url: String,
             title: String,
             isSold: Boolean,
             sellerNickname: String,
@@ -30,13 +32,14 @@ object Auction {
             bids: List[Bid]): Auction =
     auctionType match {
       case BidType =>
-        AuctionBid(id, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids)
+        AuctionBid(id, url, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids)
       case FixedPriceType =>
-        AuctionFixedPrice(id, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids.headOption)
+        AuctionFixedPrice(id, url, title, isSold, sellerNickname, sellerLocation, startPrice, finalPrice, startDate, endDate, largeImageUrl, bids.headOption)
     }
 }
 
 final case class AuctionBid(id: String,
+                            url: String,
                             title: String,
                             isSold: Boolean,
                             sellerNickname: String,
@@ -49,6 +52,7 @@ final case class AuctionBid(id: String,
                             bids: List[Bid]) extends Auction
 
 final case class AuctionFixedPrice(id: String,
+                                   url: String,
                                    title: String,
                                    isSold: Boolean,
                                    sellerNickname: String,

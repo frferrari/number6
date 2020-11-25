@@ -3,7 +3,7 @@ package com.fferrari.validation
 import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
-import cats.implicits.catsSyntaxTuple12Semigroupal
+import cats.implicits.{catsSyntaxTuple13Semigroupal, catsSyntaxValidatedIdBinCompat0}
 import com.fferrari.PriceScrapperProtocol.WebsiteInfo
 import com.fferrari.model.{Auction, AuctionType, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
@@ -11,17 +11,18 @@ import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
 trait AuctionValidator {
 
-  def fetchListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
-                      (implicit jsoupBrowser: JsoupBrowser): JsoupDocument
+  def validateListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
+                         (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
-  def fetchListingPageUrls(websiteInfo: WebsiteInfo)
-                          (implicit htmlDoc: JsoupDocument): List[String]
+  def validateAuctionUrls(websiteInfo: WebsiteInfo)
+                         (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[String]]
 
   def validateAuction(auctionUrl: String)
                      (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], Auction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
 
-    (validateAuctionType, validateId, validateTitle, validateIsSold,
+    (validateAuctionType,
+      validateId, auctionUrl.validNec, validateTitle, validateIsSold,
       validateSellerNickname, validateSellerLocation,
       validateStartPrice, validateFinalPrice,
       validateStartDate, validateEndDate,
