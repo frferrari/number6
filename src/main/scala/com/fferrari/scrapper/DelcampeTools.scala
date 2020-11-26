@@ -101,7 +101,7 @@ object DelcampeTools {
     Try {
       val quantityRegex(quantity) = htmlQuantity
       quantity.toInt
-    }.map(_.validNec).getOrElse(InvalidBidQuantity.invalidNec)
+    }.map(_.validNec).getOrElse(InvalidBidQuantityFormat.invalidNec)
   }
 
   /**

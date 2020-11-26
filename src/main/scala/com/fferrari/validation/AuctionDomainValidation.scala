@@ -75,7 +75,7 @@ case object BidPriceNotFound extends AuctionDomainValidation {
 case object BidDateNotFound extends AuctionDomainValidation {
   override def errorMessage: String = "The bid date could not be fetched"
 }
-case object InvalidBidQuantity extends AuctionDomainValidation {
+case object InvalidBidQuantityFormat extends AuctionDomainValidation {
   override def errorMessage: String = "The bid quantity could not be fetched"
 }
 

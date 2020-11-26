@@ -1,117 +1,116 @@
 package com.fferrari
 
-import java.util.Date
+import java.time.LocalDateTime
 
+import cats.data.Chain
+import cats.data.Validated.{Invalid, Valid}
+import com.fferrari.model.Price
 import com.fferrari.scrapper.DelcampeTools
+import com.fferrari.validation.{InvalidBidQuantityFormat, InvalidDateFormat, InvalidShortDateFormat}
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-/*
 class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
-  "A valid short date (PM time)" should "be converted properly" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 PM")
-
-    assert(result.isDefined)
-    assert(result.value == new Date(1605464226000L))
+  it should "extract the correct date from a valid short date (PM time)" in {
+    val result = DelcampeTools.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 PM")
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 17, 6)))
   }
 
-  "A valid short date (AM time)" should "be converted properly" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 AM")
-
-    assert(result.isDefined)
-    assert(result.value == new Date(1605421026000L))
+  it should "extract the correct date from a valid short date (AM time)" in {
+    val result = DelcampeTools.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 AM")
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 7, 17, 6)))
   }
 
-  "An invalid short date" should "produce a None" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlShortDate("Noc 15, 2020 at 7:17:06 AM")
-
-    assert(result.isEmpty)
+  it should "produce an InvalidShortDateFormat" in {
+    val result = DelcampeTools.parseHtmlShortDate("Noc 15, 2020 at 7:17:06 AM")
+    assert(result == Invalid(Chain(InvalidShortDateFormat)))
   }
 
-  "A valid date (PM time)" should "be converted properly" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlDate("Ended on<br>Sunday, November 15, 2020 at 7:32 PM")
-
-    assert(result.isDefined)
-    assert(result.value == new Date(1605465120000L))
+  it should "extract the correct date from a valid date (PM time)" in {
+    val result = DelcampeTools.parseHtmlDate("Ended on<br>Sunday, November 15, 2020 at 7:32 PM")
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 32, 0)))
   }
 
-  "A valid date (AM time)" should "be converted properly" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlDate("Ended on<br>Saturday, November 7, 2020 at 7:32 AM")
-
-    assert(result.isDefined)
-    assert(result.value == new Date(1604730720000L))
+  it should "extract the correct date from a valid date (AM time)" in {
+    val result = DelcampeTools.parseHtmlDate("Ended on<br>Saturday, November 7, 2020 at 7:32 AM")
+    assert(result == Valid(LocalDateTime.of(2020, 11, 7, 7, 32, 0)))
   }
 
-  "An invalid date" should "produce a None" in {
-    val result: Option[Date] = DelcampeTools.parseHtmlDate("Ended on<br>Saturday, Nochember 7, 2020 at 7:32 AM")
-
-    assert(result.isEmpty)
+  it should "produce an InvalidDateFormat" in {
+    val result = DelcampeTools.parseHtmlDate("Ended on<br>Saturday, Nochember 7, 2020 at 7:32 AM")
+    assert(result == Invalid(Chain(InvalidDateFormat)))
   }
 
-  "A relative http URL" should "be converted as an absolute URL" in {
+  it should "produce an absolute URL from a relative http URL" in {
     val result = DelcampeTools.relativeToAbsoluteUrl("http://www.abracadabra.com/en", "list/items")
     assert(result == "http://www.abracadabra.com/list/items")
   }
 
-  "An absolute URL" should "not be modified" in {
+  it should "keep an absolute URL unmodified" in {
     val result = DelcampeTools.relativeToAbsoluteUrl("http://www.example.com/en", "http://www.bubblegum.com/list/items")
     assert(result == "http://www.bubblegum.com/list/items")
   }
 
-  "The string '1 bid'" should "produce the value 1" in {
+  it should "extract the value 1 from the string '1 bid'" in {
     assert(DelcampeTools.bidCountFromText(Some("1 bid")).contains(1))
   }
 
-  "The string '3 bids'" should "produce the value 3" in {
+  it should "extract the value 3 from the string '3 bids'" in {
     assert(DelcampeTools.bidCountFromText(Some("3 bids")).contains(3))
   }
 
-  "An empty string" should "produce a None" in {
+  it should "produce a None from an empty bid count string" in {
     assert(DelcampeTools.bidCountFromText(Some("")).isEmpty)
   }
 
-  "An undefined value" should "produce a None" in {
+  it should "produce a None from an undefined bid count string" in {
     assert(DelcampeTools.bidCountFromText(None).isEmpty)
   }
 
-  "A string containing a EURO currency and a price" should "produce be properly parsed" in {
+  it should "extract the correct price from a string containing a EURO currency and a price" in {
     val result = DelcampeTools.parseHtmlPrice("€2.65")
-    assert(result.contains(("EUR", BigDecimal(2.65))))
+    assert(result == Valid(Price(2.65, "EUR")))
   }
 
-  "A string containing a DOLLAR currency and a price" should "produce be properly parsed" in {
+  it should "extract the correct price from a string containing a DOLLAR currency and a price" in {
     val result = DelcampeTools.parseHtmlPrice("$1.80")
-
-    assert(result.contains(("USD", BigDecimal(1.80))))
+    assert(result == Valid(Price(1.8, "USD")))
   }
 
-  "A string containing the € sign" should "produce the EUR string" in {
+  it should "produce EUR from a string containing the € sign" in {
     assert(DelcampeTools.normalizeCurrency("€") == "EUR")
   }
 
-  "A string containing the $ sign" should "produce the USD string" in {
+  it should "produce USD from a string containing the $ sign" in {
     assert(DelcampeTools.normalizeCurrency("$") == "USD")
   }
 
-  "A string containing the £ sign" should "produce the GBP string" in {
+  it should "produce GBP from a string containing the £ sign" in {
     assert(DelcampeTools.normalizeCurrency("£") == "GBP")
   }
 
-  "A string containing the CHF string" should "produce the CHF string" in {
+  it should "produce CHF from a string containing the CHF string" in {
     assert(DelcampeTools.normalizeCurrency("CHF") == "CHF")
   }
 
-  "A seller information label of 'Location:'" should "produce the string LOCATION" in {
+  it should "produce LOCATION from the string 'Location:'" in {
     assert(DelcampeTools.extractSellerInfoLabel("Location:") == "LOCATION")
   }
 
-  "A string containing a purchase quantity of 1" should "be parsed as the value 1" in {
-    assert(DelcampeTools.parseHtmlQuantity("1 item").contains(1))
+  it should "extract the value 1 from the string '1 item'" in {
+    assert(DelcampeTools.parseHtmlQuantity("1 item") == Valid(1))
   }
 
-  "A string containing a purchase quantity of 2" should "be parsed as the value 2" in {
-    assert(DelcampeTools.parseHtmlQuantity("2 items").contains(2))
+  it should "extract the value 2 from the string '2 item'" in {
+    assert(DelcampeTools.parseHtmlQuantity("2 items") == Valid(2))
+  }
+
+  it should "produce an InvalidBidQuantityFormat from the string 'items'" in {
+    assert(DelcampeTools.parseHtmlQuantity("items") == Invalid(Chain(InvalidBidQuantityFormat)))
+  }
+
+  it should "produce an InvalidBidQuantityFormat from an empty string" in {
+    assert(DelcampeTools.parseHtmlQuantity("items") == Invalid(Chain(InvalidBidQuantityFormat)))
   }
 }
-*/

@@ -17,8 +17,8 @@ object AuctionScrapperActor {
   def apply(): Behavior[PriceScrapperCommand] = Behaviors.setup { context =>
     // TODO fetch from DB
     val websiteInfos: List[WebsiteInfo] = List(
-      WebsiteInfo(Delcampe, "https://www.delcampe.net/en_US/collectibles/stamps/zambezia?search_mode=all&order=sale_start_datetime&display_state=sold_items&duration_selection=all&seller_localisation_choice=world", None),
-      WebsiteInfo(Delcampe, "https://www.delcampe.net/en_US/collectibles/search?term=&categories%5B%5D=3268&search_mode=all&order=sale_start_datetime&display_state=sold_items&duration_selection=all&seller_localisation_choice=world", None)
+      WebsiteInfo(Delcampe, "https://www.delcampe.net/en_US/collectibles/stamps/zambezia?search_mode=all&duration_selection=all", None),
+      WebsiteInfo(Delcampe, "https://www.delcampe.net/en_US/collectibles/search?term=&categories%5B%5D=3268&search_mode=all&duration_selection=all", None)
     )
 
     context.self ! ExtractUrls
@@ -34,16 +34,16 @@ object AuctionScrapperActor {
           context.self ! ExtractAuctionUrls
 
           if (websiteInfosIdx < websiteInfos.size)
-            processAuctionUrls(websiteInfos, websiteInfosIdx, 1, auctionValidator)
+            processAuctions(websiteInfos, websiteInfosIdx, 1, auctionValidator)
           else
-            processAuctionUrls(websiteInfos, 0, 1, auctionValidator)
+            processAuctions(websiteInfos, 0, 1, auctionValidator)
       }
     }
 
-  private def processAuctionUrls(websiteInfos: List[WebsiteInfo],
-                                 websiteInfosIdx: Int,
-                                 pageNumber: Int,
-                                 auctionValidator: AuctionValidator): Behavior[PriceScrapperCommand] =
+  private def processAuctions(websiteInfos: List[WebsiteInfo],
+                              websiteInfosIdx: Int,
+                              pageNumber: Int,
+                              auctionValidator: AuctionValidator): Behavior[PriceScrapperCommand] =
     Behaviors.withTimers[PriceScrapperCommand] { implicit timers =>
       Behaviors.receivePartial {
 
@@ -51,9 +51,9 @@ object AuctionScrapperActor {
 
           val websiteInfo: WebsiteInfo = websiteInfos(websiteInfosIdx)
 
-          context.log.info(s"Scraping Website Info: $websiteInfo")
+          context.log.info(s"Scraping website URL ${websiteInfo.url} PAGE $pageNumber")
 
-          auctionValidator.validateListingPage(websiteInfo, 480, pageNumber) match {
+          auctionValidator.validateListingPage(websiteInfo, 12, pageNumber) match {
             case Valid(jsoupDocument) =>
               auctionValidator.validateAuctionUrls(websiteInfo)(jsoupDocument) match {
                 case Valid(urls) if urls.nonEmpty =>
@@ -62,22 +62,20 @@ object AuctionScrapperActor {
 
                 case Valid(urls) if urls.isEmpty =>
                   context.log.info(s"No URLs fetched from the listing page, moving to the next website")
-                  processNextWebsite(websiteInfos, websiteInfosIdx)
-                // timers.startSingleTimer(ExtractAuctionUrls, randomDurationMs())
-                // processAuctionUrls(websiteInfos, websiteInfosIdx, List(), 1, auctionValidator)
+                  moveToNextWebsite(websiteInfos, websiteInfosIdx)
 
                 case Invalid(e) =>
                   context.log.error(s"$e, moving to the next website")
-                  processNextWebsite(websiteInfos, websiteInfosIdx)
+                  moveToNextWebsite(websiteInfos, websiteInfosIdx)
               }
 
             case Invalid(e) =>
               context.log.info(s"$e, moving to the next website")
-              processNextWebsite(websiteInfos, websiteInfosIdx)
+              moveToNextWebsite(websiteInfos, websiteInfosIdx)
 
             case e =>
               context.log.error(s"Unknown state $e, moving to the next website")
-              processNextWebsite(websiteInfos, websiteInfosIdx)
+              moveToNextWebsite(websiteInfos, websiteInfosIdx)
           }
 
         case (context, ExtractAuctions(auctionUrls)) =>
@@ -85,25 +83,27 @@ object AuctionScrapperActor {
           auctionUrls match {
             case auctionUrl :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: $auctionUrl")
+
               auctionValidator.validateAuction(auctionUrl) match {
                 case Valid(auction) =>
-                  context.log.info(s"Auction fetched successfully $auction")
+                  context.log.info(s"Auction fetched successfully ${auction.url}")
+                  timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
+                  Behaviors.same
                 case Invalid(e) =>
-                  context.log.error(s"Error while fetching auction $auctionUrl ($e)")
+                  context.log.error(s"Error while fetching auction $auctionUrl, moving to the next website ($e)")
+                  moveToNextWebsite(websiteInfos, websiteInfosIdx)
               }
-              timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
-              Behaviors.same
 
             case _ =>
               context.log.info("No more urls to process, moving to the next page")
               timers.startSingleTimer(ExtractAuctionUrls, randomDurationMs())
-              processAuctionUrls(websiteInfos, 0, pageNumber + 1, auctionValidator)
+              processAuctions(websiteInfos, 0, pageNumber + 1, auctionValidator)
           }
       }
     }
 
-  def processNextWebsite(websiteInfos: List[WebsiteInfo], websiteInfosIdx: Int)
-                        (implicit timers: TimerScheduler[PriceScrapperCommand]): Behavior[PriceScrapperCommand] = {
+  def moveToNextWebsite(websiteInfos: List[WebsiteInfo], websiteInfosIdx: Int)
+                       (implicit timers: TimerScheduler[PriceScrapperCommand]): Behavior[PriceScrapperCommand] = {
     timers.startSingleTimer(ExtractUrls, randomDurationMs())
     processWebsiteInfo(websiteInfos, websiteInfosIdx + 1)
   }

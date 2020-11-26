@@ -45,7 +45,7 @@ class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with
   }
   it should "extract the auction END DATE from a SOLD auction of BID type" in {
     delcampeValidator.validateEndDate(htmlDoc) shouldBe
-      Valid(Some(LocalDateTime.of(2020, 11, 10, 19, 00)))
+      Valid(Some(LocalDateTime.of(2020, 11, 10, 19, 0)))
   }
   it should "extract the auction LARGE IMAGE URL from a SOLD auction of BID type" in {
     delcampeValidator.validateLargeImageUrl(htmlDoc) shouldBe

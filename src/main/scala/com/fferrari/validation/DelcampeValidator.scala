@@ -41,7 +41,7 @@ class DelcampeValidator extends AuctionValidator {
         htmlDoc.validNec
     }
 
-    Try(jsoupBrowser.get(s"${websiteInfo.url}&size=$itemsPerPage&page=$pageNumber"))
+    Try(jsoupBrowser.get(s"${websiteInfo.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber"))
       .map(checkPageValidity)
       .getOrElse(ListingPageNotFound.invalidNec)
   }
@@ -272,7 +272,7 @@ class DelcampeValidator extends AuctionValidator {
   def fetchFixedPriceTypePurchaseQuantity(bid: Element): ValidationResult[Int] =
     (bid >?> text("li:nth-child(2)"))
       .map(DelcampeTools.parseHtmlQuantity)
-      .getOrElse(InvalidBidQuantity.invalidNec)
+      .getOrElse(InvalidBidQuantityFormat.invalidNec)
 
   def fetchFixedPriceTypePurchaseDate(bid: Element): ValidationResult[LocalDateTime] = {
     val htmlPurchaseDate: Option[String] = bid >?> text("li:nth-child(3)")
