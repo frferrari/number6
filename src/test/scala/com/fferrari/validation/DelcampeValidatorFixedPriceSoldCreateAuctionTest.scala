@@ -8,7 +8,7 @@ import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
+class DelcampeValidatorFixedPriceSoldCreateAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
 
   val delcampeValidator: DelcampeValidator = new DelcampeValidator
 

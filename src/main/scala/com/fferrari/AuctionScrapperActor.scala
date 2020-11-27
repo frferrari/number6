@@ -88,7 +88,14 @@ object AuctionScrapperActor {
                 case Valid(auction) =>
                   context.log.info(s"Auction fetched successfully ${auction.url}")
                   timers.startSingleTimer(ExtractAuctions(remainingAuctionUrls), randomDurationMs())
-                  Behaviors.same
+
+                  websiteInfos(websiteInfosIdx).lastScrappedUrl match {
+                    case Some(_) =>
+                      Behaviors.same
+                    case None =>
+                      val updatedWebsiteInfo = websiteInfos(websiteInfosIdx).copy(lastScrappedUrl = Some(auctionUrl))
+                      processAuctions(websiteInfos.updated(websiteInfosIdx, updatedWebsiteInfo), websiteInfosIdx, pageNumber, auctionValidator)
+                  }
                 case Invalid(e) =>
                   context.log.error(s"Error while fetching auction $auctionUrl, moving to the next website ($e)")
                   moveToNextWebsite(websiteInfos, websiteInfosIdx)

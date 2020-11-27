@@ -6,7 +6,7 @@ import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.model.Price
 import com.fferrari.scrapper.DelcampeTools
-import com.fferrari.validation.{InvalidBidQuantityFormat, InvalidDateFormat, InvalidShortDateFormat}
+import com.fferrari.validation.{InvalidBidQuantityFormat, InvalidDateFormat, InvalidPriceFormat, InvalidShortDateFormat}
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -52,6 +52,21 @@ class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
     assert(result == "http://www.bubblegum.com/list/items")
   }
 
+  it should "produce an absolute URL from a relative URL having the absolute URL finishing with /" in {
+    val result = DelcampeTools.relativeToAbsoluteUrl("http://www.example.com/en/", "list/items")
+    assert(result == "http://www.example.com/list/items")
+  }
+
+  it should "produce an absolute URL from a relative URL having the relative URL starting with /" in {
+    val result = DelcampeTools.relativeToAbsoluteUrl("http://www.example.com", "/list/items")
+    assert(result == "http://www.example.com/list/items")
+  }
+
+  it should "produce an absolute URL from a relative URL having the absolute URL finishing with / and the relative URL starting with /" in {
+    val result = DelcampeTools.relativeToAbsoluteUrl("http://www.example.com/en/", "/list/items")
+    assert(result == "http://www.example.com/list/items")
+  }
+
   it should "extract the value 1 from the string '1 bid'" in {
     assert(DelcampeTools.bidCountFromText(Some("1 bid")).contains(1))
   }
@@ -76,6 +91,11 @@ class DelcampeToolsTest extends AnyFlatSpec with Matchers with OptionValues {
   it should "extract the correct price from a string containing a DOLLAR currency and a price" in {
     val result = DelcampeTools.parseHtmlPrice("$1.80")
     assert(result == Valid(Price(1.8, "USD")))
+  }
+
+  it should "produce an InvalidPriceFormat from an invalid price string" in {
+    val result = DelcampeTools.parseHtmlPrice("1.80")
+    assert(result == Invalid(Chain(InvalidPriceFormat)))
   }
 
   it should "produce EUR from a string containing the € sign" in {

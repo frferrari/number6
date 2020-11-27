@@ -4,8 +4,8 @@ import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
 import cats.implicits.{catsSyntaxTuple13Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.PriceScrapperProtocol.WebsiteInfo
-import com.fferrari.model.{Auction, AuctionType, Bid, Price}
+import com.fferrari.PriceScrapperProtocol.{CreateAuction, WebsiteInfo}
+import com.fferrari.model.{AuctionType, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -18,7 +18,7 @@ trait AuctionValidator {
                          (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[String]]
 
   def validateAuction(auctionUrl: String)
-                     (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], Auction] = {
+                     (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
 
     (validateAuctionType,
@@ -27,7 +27,7 @@ trait AuctionValidator {
       validateStartPrice, validateFinalPrice,
       validateStartDate, validateEndDate,
       validateLargeImageUrl,
-      validateBids).mapN(Auction.apply)
+      validateBids).mapN(CreateAuction.apply)
   }
 
   def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String]

@@ -118,7 +118,7 @@ object DelcampeTools {
       case false =>
         val baseUrlRegex = "(http[s]*://[^/]+).*".r
         val baseUrlRegex(baseUrl) = parentUrl
-        if (relativeUrl startsWith "/") {
+        if (baseUrl.endsWith("/") || relativeUrl.startsWith("/")) {
           s"$baseUrl$relativeUrl"
         } else {
           s"$baseUrl/$relativeUrl"
