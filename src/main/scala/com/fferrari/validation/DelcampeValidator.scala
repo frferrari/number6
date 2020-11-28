@@ -129,8 +129,9 @@ class DelcampeValidator extends AuctionValidator {
       .getOrElse(AuctionTypeNotFound.invalidNec)
   }
 
-  override def validateIsSold(implicit htmlDoc: JsoupDocument): ValidationResult[Boolean] =
-    (htmlDoc >?> elementList(s"${CLOSED_SELL_TAG}.price-box")).nonEmpty.validNec
+  override def validateIsSold(implicit htmlDoc: JsoupDocument): ValidationResult[Boolean] = {
+    (htmlDoc >?> elementList(s"${CLOSED_SELL_TAG}.price-box")).exists(_.nonEmpty).validNec
+  }
 
   override def validateStartPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] = {
     fetchClosedSellElement match {
@@ -236,11 +237,11 @@ class DelcampeValidator extends AuctionValidator {
       case (Some(_), Some(_), None) =>
         1.validNec
       case (Some(_), None, Some(bidsTable)) =>
-        (bidsTable >?> elementList("div.bids-container div.bids div.table-list-line"))
-          .map(_.size.validNec)
+        (bidsTable >?> elementList("div.bids-container div.bids div.table-list-line ul li.list-user"))
+          .map(listLines => if (listLines.nonEmpty) listLines.size.validNec else BidsContainerNotFound.invalidNec)
           .getOrElse(BidsContainerNotFound.invalidNec)
       case _ =>
-        0.validNec
+        RequestForBidCountForOngoingAuction.invalidNec
     }
   }
 

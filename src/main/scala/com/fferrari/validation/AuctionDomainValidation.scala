@@ -60,6 +60,10 @@ case object RequestForBidsForOngoingAuction extends AuctionDomainValidation {
   override def errorMessage: String = "Invalid request to fetch bids on an ongoing auction"
 }
 
+case object RequestForBidCountForOngoingAuction extends AuctionDomainValidation {
+  override def errorMessage: String = "Invalid request to fetch bid count on an ongoing auction"
+}
+
 case object BidderNicknameNotFound extends AuctionDomainValidation {
   override def errorMessage: String = "The bidder nickname could not be fetched"
 }
