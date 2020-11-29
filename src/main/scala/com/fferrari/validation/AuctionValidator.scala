@@ -9,9 +9,14 @@ import com.fferrari.model.{AuctionType, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
+import scala.util.Try
+
 trait AuctionValidator {
 
-  def validateListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
+  def validateListingPage(websiteInfo: WebsiteInfo,
+                          getPage: String => Try[JsoupDocument],
+                          itemsPerPage: Int,
+                          pageNumber: Int = 1)
                          (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
   def validateAuctionUrls(websiteInfo: WebsiteInfo)

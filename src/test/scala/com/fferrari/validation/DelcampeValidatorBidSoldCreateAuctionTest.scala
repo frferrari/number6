@@ -6,6 +6,11 @@ import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.model.{Bid, BidType, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
+import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
+import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
+import net.ruippeixotog.scalascraper.dsl.DSL._
+import net.ruippeixotog.scalascraper.model.Element
+import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementList, text}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -16,7 +21,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
   val htmlDoc: JsoupBrowser.JsoupDocument = jsoupBrowser.get(BID_TYPE_SOLD_URL)
 
-  it should "extract the auction ID from a SOLD auction of BID type" in {
+  it should "extract the auction ID for a SOLD auction of BID type" in {
     delcampeValidator.validateId(htmlDoc) shouldBe Valid("1120841389")
   }
   it should "produce a IdNotFound from some invalid HTML string" in {
@@ -24,7 +29,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
     delcampeValidator.validateId(jsoupBrowser.parseString(htmlString)) shouldBe Invalid(Chain(IdNotFound))
   }
 
-  it should "extract the auction TITLE from a SOLD auction of BID type" in {
+  it should "extract the auction TITLE for a SOLD auction of BID type" in {
     delcampeValidator.validateTitle(htmlDoc) shouldBe Valid("TIMBRES DE FRANCE N° 3269 A 3278 OBLITÉRÉS ( LOT:4933 )")
   }
   it should "produce a TitleNotFound from some invalid HTML string" in {
@@ -33,7 +38,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Invalid(Chain(TitleNotFound))
   }
 
-  it should "extract the auction SELLER NICKNAME from a SOLD auction of BID type" in {
+  it should "extract the auction SELLER NICKNAME for a SOLD auction of BID type" in {
     delcampeValidator.validateSellerNickname(htmlDoc) shouldBe Valid("lulu321")
   }
   it should "produce SellerNicknameNotFound from some invalid HTML string" in {
@@ -42,7 +47,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Invalid(Chain(SellerNicknameNotFound))
   }
 
-  it should "extract the auction SELLER LOCATION from a SOLD auction of BID type" in {
+  it should "extract the auction SELLER LOCATION for a SOLD auction of BID type" in {
     delcampeValidator.validateSellerLocation(htmlDoc) shouldBe Valid("France")
   }
   it should "produce SellerLocationNotFound from some invalid HTML string" in {
@@ -60,25 +65,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Invalid(Chain(SellerLocationNotFound))
   }
 
-  it should "extract the auction TYPE from a SOLD auction of BID type" in {
-    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(BidType)
-  }
-  it should "produce AuctionTypeNotFound from some invalid HTML string" in {
-    val htmlString = """<div class="price-info"><div><i></i></div></div>"""
-    delcampeValidator.validateAuctionType(jsoupBrowser.parseString(htmlString)) shouldBe
-      Invalid(Chain(AuctionTypeNotFound))
-  }
-
-  it should "extract the auction SOLD FLAG from a SOLD auction of BID type" in {
-    delcampeValidator.validateIsSold(htmlDoc) shouldBe Valid(true)
-  }
-  it should "produce false from some invalid HTML string" in {
-    val htmlString = """<div id="closed-sell"><div>"""
-    delcampeValidator.validateIsSold(jsoupBrowser.parseString(htmlString)) shouldBe
-      Valid(false)
-  }
-
-  it should "extract the auction START PRICE from a SOLD auction of BID type" in {
+  it should "extract the auction START PRICE for a SOLD auction of BID type" in {
     delcampeValidator.validateStartPrice(htmlDoc) shouldBe Valid(Price(2.0, "EUR"))
   }
   it should "produce StartPriceNotFound from some invalid HTML string" in {
@@ -86,8 +73,33 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
     delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(StartPriceNotFound))
   }
+  it should "produce StartPriceNotFound from an ONGOING auction of type BID missing the START PRICE node" in {
+    val htmlString = """<div><div id="buy-box"></div></div>"""
+    delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
+      Invalid(Chain(StartPriceNotFound))
+  }
+  it should "produce StartPriceNotFound from an ONGOING auction missing the BID TYPE node" in {
+    val htmlString = """<div><div></div></div>"""
+    delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
+      Invalid(Chain(StartPriceNotFound))
+  }
+  it should "produce StartPriceNotFound for a SOLD auction missing the START PRICE node" in {
+    val htmlString = """<div id="closed-sell"><div id="tab-bids"></div></div>"""
+    delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
+      Invalid(Chain(StartPriceNotFound))
+  }
+  it should "produce StartPriceNotFound for an ONGOING auction missing the START PRICE node" in {
+    val htmlString = """<div id="bid-box"></div>"""
+    delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
+      Invalid(Chain(StartPriceNotFound))
+  }
+  it should "extract the price for an ONGOING auction" in {
+    val htmlString = """<div id="bid-box"><span class="price">€2.80</span></div>"""
+    delcampeValidator.validateStartPrice(jsoupBrowser.parseString(htmlString)) shouldBe
+      Valid(Price(2.80, "EUR"))
+  }
 
-  it should "extract the auction FINAL PRICE from a SOLD auction of BID type" in {
+  it should "extract the auction FINAL PRICE for a SOLD auction of BID type" in {
     delcampeValidator.validateFinalPrice(htmlDoc) shouldBe Valid(Some(Price(2.30, "EUR")))
   }
   it should "produce FinalPriceNotFound from some invalid HTML string" in {
@@ -101,7 +113,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Valid(None)
   }
 
-  it should "extract the auction START DATE from a SOLD auction of BID type" in {
+  it should "extract the auction START DATE for a SOLD auction of BID type" in {
     delcampeValidator.validateStartDate(htmlDoc) shouldBe
       Valid(LocalDateTime.of(2020, 11, 3, 5, 53, 0))
   }
@@ -116,7 +128,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Invalid(Chain(StartDateNotFound))
   }
 
-  it should "extract the auction END DATE from a SOLD auction of BID type" in {
+  it should "extract the auction END DATE for a SOLD auction of BID type" in {
     delcampeValidator.validateEndDate(htmlDoc) shouldBe
       Valid(Some(LocalDateTime.of(2020, 11, 10, 19, 0)))
   }
@@ -131,7 +143,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Valid(None)
   }
 
-  it should "extract the auction LARGE IMAGE URL from a SOLD auction of BID type" in {
+  it should "extract the auction LARGE IMAGE URL for a SOLD auction of BID type" in {
     delcampeValidator.validateLargeImageUrl(htmlDoc) shouldBe
       Valid("https://delcampe-static.net/img_large/auction/001/120/841/389_001.jpg?v=1")
   }
@@ -141,7 +153,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
       Invalid(Chain(LargeImageUrlNotFound))
   }
 
-  it should "extract the auction BIDS from a SOLD auction of BID type" in {
+  it should "extract the auction BIDS for a SOLD auction of BID type" in {
     delcampeValidator.validateBids(htmlDoc) shouldBe
       Valid(
         List(
@@ -162,11 +174,7 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
     delcampeValidator.validateBids(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(RequestForBidsForOngoingAuction))
   }
-
-  it should "extract the auction BID COUNT from a SOLD auction of BID type" in {
-    delcampeValidator.validateBidCount(htmlDoc) shouldBe Valid(4)
-  }
-  it should "produce a BidsContainerNotFound from a closed auction with some invalid HTML string" in {
+  it should "produce a BidsContainerNotFound from a closed auction with missing bids" in {
     val htmlString =
       """<div id="closed-sell">
         | <div id="tab-bids">
@@ -178,8 +186,12 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
         |   </div>
         | </div>
         |</div>""".stripMargin
-    delcampeValidator.validateBidCount(jsoupBrowser.parseString(htmlString)) shouldBe
+    delcampeValidator.validateBids(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(BidsContainerNotFound))
+  }
+
+  it should "extract the auction BID COUNT for a SOLD auction of BID type" in {
+    delcampeValidator.validateBidCount(htmlDoc) shouldBe Valid(4)
   }
   it should "produce a BidsContainerNotFound from a closed auction with some invalid HTML string" in {
     val htmlString =
@@ -200,5 +212,29 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
     val htmlString = """<div></div>"""
     delcampeValidator.validateBidCount(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(RequestForBidCountForOngoingAuction))
+  }
+
+  it should "produce BidderNicknameNotFound when the HTML document is missing the nickname node" in {
+    val htmlString = "<div><ul><li><span></span></li></ul></div>"
+    val el: Element = jsoupBrowser.parseString(htmlString) >> element("div")
+    delcampeValidator.fetchBidTypeBidderNickname(el) shouldBe Invalid(Chain(BidderNicknameNotFound))
+  }
+
+  it should "produce false when the HTML document is missing the 'automatic' node" in {
+    val htmlString = "<div><ul><li></li><li><span></span></li></ul></div>"
+    val el: Element = jsoupBrowser.parseString(htmlString) >> element("div")
+    delcampeValidator.fetchBidTypeIsAutomaticBid(el) shouldBe Valid(false)
+  }
+
+  it should "produce BidPriceNotFound when the HTML document is missing the BID PRICE node" in {
+    val htmlString = "<div><ul><li></li><li><span></span></li></ul></div>"
+    val el: Element = jsoupBrowser.parseString(htmlString) >> element("div")
+    delcampeValidator.fetchBidTypeBidPrice(el) shouldBe Invalid(Chain(BidPriceNotFound))
+  }
+
+  it should "produce BidDateNotFound when the HTML document is missing the BID DATE node" in {
+    val htmlString = "<div><ul><li></li><li></li></ul></div>"
+    val el: Element = jsoupBrowser.parseString(htmlString) >> element("div")
+    delcampeValidator.fetchBidTypeBidDate(el) shouldBe Invalid(Chain(BidDateNotFound))
   }
 }

@@ -28,7 +28,10 @@ class DelcampeValidator extends AuctionValidator {
   val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
   val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  override def validateListingPage(websiteInfo: WebsiteInfo, itemsPerPage: Int, pageNumber: Int = 1)
+  override def validateListingPage(websiteInfo: WebsiteInfo,
+                                   getPage: String => Try[JsoupDocument],
+                                   itemsPerPage: Int,
+                                   pageNumber: Int = 1)
                                   (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
     def checkPageValidity(htmlDoc: JsoupDocument): ValidationResult[JsoupDocument] = {
       if ((htmlDoc >> texts("div.items.main div h2"))
@@ -41,7 +44,7 @@ class DelcampeValidator extends AuctionValidator {
         htmlDoc.validNec
     }
 
-    Try(jsoupBrowser.get(s"${websiteInfo.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber"))
+    getPage(s"${websiteInfo.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber")
       .map(checkPageValidity)
       .getOrElse(ListingPageNotFound.invalidNec)
   }
@@ -55,16 +58,13 @@ class DelcampeValidator extends AuctionValidator {
         .getOrElse(AuctionLinkNotFound.invalidNec)
     }
 
-    val htmlAuctionUrls: ValidationResult[List[String]] =
-      (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos div.item-info a.item-link"))
-        .map(fetchLink)
-        .sequence
-
-    // Keep only the auction urls that have not yet been processed (since the last run)
-    htmlAuctionUrls
+    (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos div.item-info a.item-link"))
+      .map(fetchLink)
+      .sequence
       .map { urls =>
         websiteInfo.lastScrappedUrl match {
           case Some(lastScrappedUrl) if urls.contains(lastScrappedUrl) =>
+            // Keep only the auction urls that have not yet been processed (since the last run)
             urls.takeWhile(_ != lastScrappedUrl)
           case _ =>
             urls
@@ -237,9 +237,10 @@ class DelcampeValidator extends AuctionValidator {
       case (Some(_), Some(_), None) =>
         1.validNec
       case (Some(_), None, Some(bidsTable)) =>
-        (bidsTable >?> elementList("div.bids-container div.bids div.table-list-line ul li.list-user"))
-          .map(listLines => if (listLines.nonEmpty) listLines.size.validNec else BidsContainerNotFound.invalidNec)
-          .getOrElse(BidsContainerNotFound.invalidNec)
+        bidsTable >> elementList("div.bids-container div.bids div.table-list-line ul li.list-user") match {
+          case listLines@h :: t => listLines.size.validNec
+          case _ => BidsContainerNotFound.invalidNec
+        }
       case _ =>
         RequestForBidCountForOngoingAuction.invalidNec
     }
@@ -288,10 +289,8 @@ class DelcampeValidator extends AuctionValidator {
   }
 
   def fetchBidTypeBids(implicit htmlDoc: JsoupDocument): ValidationResult[List[Bid]] = {
-    val htmlBidsTable: Option[List[Element]] = htmlDoc >?> elementList(s"${BID_TYPE_BIDS_CONTAINER} div.bids-container ul.table-body-list")
-
-    htmlBidsTable match {
-      case Some(bids) =>
+    htmlDoc >> elementList(s"${BID_TYPE_BIDS_CONTAINER} div.bids-container ul.table-body-list") match {
+      case bids@h :: t =>
         bids.map { bid =>
           val htmlNickname: ValidationResult[String] = fetchBidTypeBidderNickname(bid)
           val isAutomaticBid: ValidationResult[Boolean] = fetchBidTypeIsAutomaticBid(bid)
@@ -300,7 +299,7 @@ class DelcampeValidator extends AuctionValidator {
 
           (htmlNickname, htmlPrice, 1.validNec, isAutomaticBid, htmlBidDate).mapN(Bid)
         }.sequence
-      case None =>
+      case _ =>
         BidsContainerNotFound.invalidNec
     }
   }

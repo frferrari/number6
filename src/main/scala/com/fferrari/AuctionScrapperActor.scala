@@ -9,9 +9,11 @@ import com.fferrari.scrapper.DelcampeTools.randomDurationMs
 import com.fferrari.validation.{AuctionValidator, DelcampeValidator}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
+import scala.util.Try
+
 object AuctionScrapperActor {
   val itemsPerPage: Int = 480
-
+  def getPage(url: String): Try[JsoupBrowser.JsoupDocument] = Try(jsoupBrowser.get(url))
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
   def apply(): Behavior[PriceScrapperCommand] = Behaviors.setup { context =>
@@ -53,7 +55,7 @@ object AuctionScrapperActor {
 
           context.log.info(s"Scraping website URL ${websiteInfo.url} PAGE $pageNumber")
 
-          auctionValidator.validateListingPage(websiteInfo, 12, pageNumber) match {
+          auctionValidator.validateListingPage(websiteInfo, getPage, 12, pageNumber) match {
             case Valid(jsoupDocument) =>
               auctionValidator.validateAuctionUrls(websiteInfo)(jsoupDocument) match {
                 case Valid(urls) if urls.nonEmpty =>
