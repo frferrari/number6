@@ -4,10 +4,10 @@ import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.PriceScrapperProtocol.WebsiteInfo
+import com.fferrari.actor.AuctionScrapperProtocol.WebsiteInfo
 import com.fferrari.model._
-import com.fferrari.scrapper.DelcampeTools
-import com.fferrari.scrapper.DelcampeTools.relativeToAbsoluteUrl
+import com.fferrari.scrapper.DelcampeUtil
+import com.fferrari.scrapper.DelcampeUtil.relativeToAbsoluteUrl
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -141,12 +141,12 @@ class DelcampeValidator extends AuctionValidator {
           case (Some(_), None) =>
             // Closed auction, Fixed Price type of auction
             (closedSell >?> text("span.price"))
-              .map(DelcampeTools.parseHtmlPrice)
+              .map(DelcampeUtil.parseHtmlPrice)
               .getOrElse(StartPriceNotFound.invalidNec)
           case (None, Some(bidsTable)) =>
             // Closed auction, Bid type of auction
             (bidsTable >?> text("div.table-list-line:last-child li:nth-child(2) strong"))
-              .map(DelcampeTools.parseHtmlPrice)
+              .map(DelcampeUtil.parseHtmlPrice)
               .getOrElse(StartPriceNotFound.invalidNec)
           case _ =>
             StartPriceNotFound.invalidNec
@@ -157,12 +157,12 @@ class DelcampeValidator extends AuctionValidator {
           case (Some(buyContainer), None) =>
             // Ongoing auction, Fixed Price type of auction
             (buyContainer >?> text("span.price"))
-              .map(DelcampeTools.parseHtmlPrice)
+              .map(DelcampeUtil.parseHtmlPrice)
               .getOrElse(StartPriceNotFound.invalidNec)
           case (None, Some(bidContainer)) =>
             // Ongoing auction, Bid type of auction
             (bidContainer >?> text("span.price"))
-              .map(DelcampeTools.parseHtmlPrice)
+              .map(DelcampeUtil.parseHtmlPrice)
               .getOrElse(StartPriceNotFound.invalidNec)
           case _ =>
             StartPriceNotFound.invalidNec
@@ -177,7 +177,7 @@ class DelcampeValidator extends AuctionValidator {
     (htmlClosedSell, htmlPrice) match {
       case (Some(_), Some(price)) =>
         // (OK) The auction is marked as sold and we could extract the price
-        DelcampeTools.parseHtmlPrice(price).map(Option.apply)
+        DelcampeUtil.parseHtmlPrice(price).map(Option.apply)
       case (Some(_), None) =>
         // (KO) The auction is marked as sold but we couldn't extract the price
         FinalPriceNotFound.invalidNec
@@ -189,7 +189,7 @@ class DelcampeValidator extends AuctionValidator {
 
   override def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[LocalDateTime] =
     (htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(1) div"))
-      .map(DelcampeTools.parseHtmlDate)
+      .map(DelcampeUtil.parseHtmlDate)
       .getOrElse(StartDateNotFound.invalidNec)
 
   override def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[LocalDateTime]] = {
@@ -198,7 +198,7 @@ class DelcampeValidator extends AuctionValidator {
 
     (htmlClosedSell, htmlEndDate) match {
       case (Some(_), Some(endDate)) =>
-        DelcampeTools.parseHtmlDate(endDate).map(Option.apply)
+        DelcampeUtil.parseHtmlDate(endDate).map(Option.apply)
       case (Some(_), None) =>
         EndDateNotFound.invalidNec
       case _ =>
@@ -268,12 +268,12 @@ class DelcampeValidator extends AuctionValidator {
   def fetchFixedPriceTypePurchasePrice(implicit htmlDoc: JsoupDocument): ValidationResult[Price] =
     fetchClosedSellElement
       .flatMap(_ >?> text("span.price"))
-      .map(DelcampeTools.parseHtmlPrice)
+      .map(DelcampeUtil.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
   def fetchFixedPriceTypePurchaseQuantity(bid: Element): ValidationResult[Int] =
     (bid >?> text("li:nth-child(2)"))
-      .map(DelcampeTools.parseHtmlQuantity)
+      .map(DelcampeUtil.parseHtmlQuantity)
       .getOrElse(InvalidBidQuantityFormat.invalidNec)
 
   def fetchFixedPriceTypePurchaseDate(bid: Element): ValidationResult[LocalDateTime] = {
@@ -282,7 +282,7 @@ class DelcampeValidator extends AuctionValidator {
 
     (htmlPurchaseDate, htmlPurchaseTime) match {
       case (Some(purchaseDate), Some(purchaseTime)) =>
-        DelcampeTools.parseHtmlShortDate(s"$purchaseDate $purchaseTime")
+        DelcampeUtil.parseHtmlShortDate(s"$purchaseDate $purchaseTime")
       case _ =>
         InvalidShortDateFormat.invalidNec
     }
@@ -316,12 +316,12 @@ class DelcampeValidator extends AuctionValidator {
 
   def fetchBidTypeBidPrice(bid: Element): ValidationResult[Price] =
     (bid >?> text("li:nth-child(2) strong"))
-      .map(DelcampeTools.parseHtmlPrice)
+      .map(DelcampeUtil.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
   def fetchBidTypeBidDate(bid: Element): ValidationResult[LocalDateTime] =
     (bid >?> text("li:nth-child(3)"))
-      .map(DelcampeTools.parseHtmlShortDate)
+      .map(DelcampeUtil.parseHtmlShortDate)
       .getOrElse(BidDateNotFound.invalidNec)
 
   def fetchClosedSellElement(implicit htmlDoc: JsoupDocument): Option[Element] =

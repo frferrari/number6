@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
 import cats.implicits.{catsSyntaxTuple13Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.PriceScrapperProtocol.{CreateAuction, WebsiteInfo}
+import com.fferrari.actor.AuctionScrapperProtocol.{CreateAuction, WebsiteInfo}
 import com.fferrari.model.{AuctionType, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument

@@ -11,7 +11,7 @@ import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.matching.Regex
 import scala.util.{Failure, Random, Success, Try}
 
-object DelcampeTools {
+object DelcampeUtil {
   val rnd: Random.type = scala.util.Random
 
   import java.time.format.DateTimeFormatter

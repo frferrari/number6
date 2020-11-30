@@ -1,11 +1,11 @@
-package com.fferrari
+package com.fferrari.actor
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.PriceScrapperProtocol._
+import AuctionScrapperProtocol._
 import com.fferrari.model.Delcampe
-import com.fferrari.scrapper.DelcampeTools.randomDurationMs
+import com.fferrari.scrapper.DelcampeUtil.randomDurationMs
 import com.fferrari.validation.{AuctionValidator, DelcampeValidator}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
@@ -13,7 +13,9 @@ import scala.util.Try
 
 object AuctionScrapperActor {
   val itemsPerPage: Int = 480
+
   def getPage(url: String): Try[JsoupBrowser.JsoupDocument] = Try(jsoupBrowser.get(url))
+
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
   def apply(): Behavior[PriceScrapperCommand] = Behaviors.setup { context =>

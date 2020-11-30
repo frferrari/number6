@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.PriceScrapperProtocol.WebsiteInfo
+import com.fferrari.actor.AuctionScrapperProtocol.WebsiteInfo
 import com.fferrari.model.{Bid, BidType, Delcampe, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument

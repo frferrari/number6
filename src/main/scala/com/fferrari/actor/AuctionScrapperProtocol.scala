@@ -1,15 +1,19 @@
-package com.fferrari
-
-import com.fferrari.model.{AuctionType, Bid, BidType, FixedPriceType, Price, Website}
+package com.fferrari.actor
 
 import java.time.LocalDateTime
 
-object PriceScrapperProtocol {
+import com.fferrari.model._
+
+object AuctionScrapperProtocol {
 
   sealed trait PriceScrapperCommand
+
   final case class ScrapWebsite(website: Website) extends PriceScrapperCommand
+
   final case object ExtractUrls extends PriceScrapperCommand
+
   final case object ExtractAuctionUrls extends PriceScrapperCommand
+
   final case class ExtractAuctions(auctionUrls: Seq[String]) extends PriceScrapperCommand
 
   sealed trait CreateAuction extends PriceScrapperCommand {
@@ -101,4 +105,5 @@ object PriceScrapperProtocol {
   final case class ScrapAuction(url: String) extends PriceScrapperCommand
 
   case class WebsiteInfo(website: Website, url: String, lastScrappedUrl: Option[String])
+
 }
