@@ -1,16 +1,10 @@
 package com.fferrari.validation
 
-import java.time.LocalDateTime
-
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.actor.AuctionScrapperProtocol.WebsiteInfo
-import com.fferrari.model.{Bid, BidType, Delcampe, Price}
+import com.fferrari.model.{Batch, BatchAuctionAndThumbnailLink, BidType, Delcampe, WebsiteConfig}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
-import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
-import net.ruippeixotog.scalascraper.dsl.DSL._
-import net.ruippeixotog.scalascraper.model.Element
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -23,71 +17,113 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
   val htmlDoc: JsoupBrowser.JsoupDocument = jsoupBrowser.get(BID_TYPE_SOLD_URL)
 
-  it should "produce a list of all the auction links when websiteInfo.lastScrappedUrl is empty" in {
+  it should "produce a list of all the auction links when websiteConfig.lastScrappedUrl is empty" in {
     val htmlString =
       """
         |<div class="items main">
         | <div class="item-listing">
         |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/1.jpg">
+        |     </div>
         |     <div class="item-info">
         |       <a class="item-link" href="/auction1"></a>
+        |     </div>
+        |   </div>
+        |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/2.jpg">
+        |     </div>
+        |     <div class="item-info">
         |       <a class="item-link" href="/auction2"></a>
+        |     </div>
+        |   </div>
+        |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/3.jpg">
+        |     </div>
+        |     <div class="item-info">
         |       <a class="item-link" href="/auction3"></a>
-        |       <a class="item-link" href="/auction4"></a>
         |     </div>
         |   </div>
         | </div>
         |</div>""".stripMargin
-        val websiteInfo = WebsiteInfo(Delcampe, "http://www.example.com", None)
-    delcampeValidator.validateAuctionUrls(websiteInfo)(jsoupBrowser.parseString(htmlString)) shouldBe
+    val websiteConfig = WebsiteConfig(Delcampe, "http://www.example.com", None)
+    delcampeValidator.fetchAuctionUrls(websiteConfig)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
       Valid(
         List(
-          "http://www.example.com/auction1",
-          "http://www.example.com/auction2",
-          "http://www.example.com/auction3",
-          "http://www.example.com/auction4"
+          BatchAuctionAndThumbnailLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+          BatchAuctionAndThumbnailLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
+          BatchAuctionAndThumbnailLink("http://www.example.com/auction3", "http://www.example.com/img_thumb/3.jpg")
         )
       )
   }
-  it should "produce a list of the auction links appearing until the websiteInfo.lastScrappedUrl is found" in {
+  it should "produce a list of the auction links appearing until the websiteConfig.lastScrappedUrl is found" in {
     val htmlString =
       """
         |<div class="items main">
         | <div class="item-listing">
         |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/1.jpg">
+        |     </div>
         |     <div class="item-info">
         |       <a class="item-link" href="/auction1"></a>
+        |     </div>
+        |   </div>
+        |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/2.jpg">
+        |     </div>
+        |     <div class="item-info">
         |       <a class="item-link" href="/auction2"></a>
+        |     </div>
+        |   </div>
+        |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/3.jpg">
+        |     </div>
+        |     <div class="item-info">
         |       <a class="item-link" href="/auction3"></a>
-        |       <a class="item-link" href="/auction4"></a>
         |     </div>
         |   </div>
         | </div>
         |</div>""".stripMargin
-    val websiteInfo = WebsiteInfo(Delcampe, "http://www.example.com", Some("http://www.example.com/auction3"))
-    delcampeValidator.validateAuctionUrls(websiteInfo)(jsoupBrowser.parseString(htmlString)) shouldBe
+    val websiteConfig = WebsiteConfig(Delcampe, "http://www.example.com", Some("http://www.example.com/auction3"))
+    delcampeValidator.fetchAuctionUrls(websiteConfig)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
       Valid(
         List(
-          "http://www.example.com/auction1",
-          "http://www.example.com/auction2"
+          BatchAuctionAndThumbnailLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+          BatchAuctionAndThumbnailLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
         )
       )
   }
-  it should "produce a AuctionLinkNotFound from some invalid HTML string" in {
+  it should "produce a Chain(AuctionLinkNotFound, ThumbnailLinkNotFound) from some invalid HTML string" in {
     val htmlString =
-      """<div class="items main">
+      """
+        |<div class="items main">
         | <div class="item-listing">
         |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb" src="http://www.example.com/img_thumb/1.jpg">
+        |     </div>
         |     <div class="item-info">
-        |       <a class="item-link" href="/auction1"></a>
-        |       <a class="item-link"></a>
-        |      </div>
+        |       <a class="item-link-wrong-class-name" href="/auction1"></a>
+        |     </div>
+        |   </div>
+        |   <div class="item-main-infos">
+        |     <div class="image-container">
+        |       <img class="image-thumb-wrong-class-name" src="http://www.example.com/img_thumb/2.jpg">
+        |     </div>
+        |     <div class="item-info">
+        |       <a class="item-link" href="/auction2"></a>
+        |     </div>
         |   </div>
         | </div>
         |</div>""".stripMargin
-    val websiteInfo = WebsiteInfo(Delcampe, "http://www.example.com", None)
-    delcampeValidator.validateAuctionUrls(websiteInfo)(jsoupBrowser.parseString(htmlString)) shouldBe
-      Invalid(Chain(AuctionLinkNotFound))
+    val websiteConfig = WebsiteConfig(Delcampe, "http://www.example.com", None)
+    delcampeValidator.fetchAuctionUrls(websiteConfig)(jsoupBrowser.parseString(htmlString)) shouldBe
+      Invalid(Chain(AuctionLinkNotFound, ThumbnailLinkNotFound))
   }
 
   it should "produce the listing page as an HTML document" in {
@@ -99,20 +135,26 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         | </div>
         |</div>""".stripMargin
     val expectedDocument = jsoupBrowser.parseString(htmlString)
+
     def getPage(url: String): Try[JsoupDocument] = Try(expectedDocument)
-    delcampeValidator.validateListingPage(WebsiteInfo(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
+
+    delcampeValidator.fetchListingPage(WebsiteConfig(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
       Valid(expectedDocument)
   }
   it should "produce MaximumNumberOfAllowedPagesReached when the allowed limit of pages to read is reached" in {
     val htmlString = """<div class="items main"><div><h2>You have reached the limit of results to display</h2></div></div>"""
+
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
-    delcampeValidator.validateListingPage(WebsiteInfo(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
+
+    delcampeValidator.fetchListingPage(WebsiteConfig(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
       Invalid(Chain(MaximumNumberOfAllowedPagesReached))
   }
   it should "produce LastListingPageReached when the last listing page is reached" in {
     val htmlString = """<div class="items main"><div><h2></h2></div></div>"""
+
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
-    delcampeValidator.validateListingPage(WebsiteInfo(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
+
+    delcampeValidator.fetchListingPage(WebsiteConfig(Delcampe, "http://www.example.com", None), getPage, 20, 1) shouldBe
       Invalid(Chain(LastListingPageReached))
   }
 

@@ -107,6 +107,10 @@ case object AuctionLinkNotFound extends AuctionDomainValidation {
   override def errorMessage: String = "The auction link could not be fetched"
 }
 
+case object ThumbnailLinkNotFound extends AuctionDomainValidation {
+  override def errorMessage: String = "The thumbnail link could not be fetched"
+}
+
 case object ListingPageNotFound extends AuctionDomainValidation {
   override def errorMessage: String = "The listing page could not be fetched"
 }

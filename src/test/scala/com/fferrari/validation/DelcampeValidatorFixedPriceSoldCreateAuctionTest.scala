@@ -17,7 +17,7 @@ class DelcampeValidatorFixedPriceSoldCreateAuctionTest extends AnyFlatSpec with 
   val htmlDoc: JsoupBrowser.JsoupDocument = jsoupBrowser.get(FIXED_PRICE_TYPE_SOLD_URL)
 
   it should "extract the auction ID from a SOLD auction of FIXED PRICE type" in {
-    delcampeValidator.validateId(htmlDoc) shouldBe Valid("621701026")
+    delcampeValidator.validateExternalId(htmlDoc) shouldBe Valid("621701026")
   }
 
   it should "extract the auction TITLE from a SOLD auction of FIXED PRICE type" in {

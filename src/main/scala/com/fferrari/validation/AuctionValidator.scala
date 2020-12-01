@@ -3,9 +3,9 @@ package com.fferrari.validation
 import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
-import cats.implicits.{catsSyntaxTuple13Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.actor.AuctionScrapperProtocol.{CreateAuction, WebsiteInfo}
-import com.fferrari.model.{AuctionType, Bid, Price}
+import cats.implicits.{catsSyntaxTuple14Semigroupal, catsSyntaxValidatedIdBinCompat0}
+import com.fferrari.actor.AuctionScrapperProtocol.CreateAuction
+import com.fferrari.model._
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -13,21 +13,25 @@ import scala.util.Try
 
 trait AuctionValidator {
 
-  def validateListingPage(websiteInfo: WebsiteInfo,
-                          getPage: String => Try[JsoupDocument],
-                          itemsPerPage: Int,
-                          pageNumber: Int = 1)
-                         (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
+  def fetchListingPage(websiteInfo: WebsiteConfig,
+                       getPage: String => Try[JsoupDocument],
+                       itemsPerPage: Int,
+                       pageNumber: Int = 1)
+                      (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
-  def validateAuctionUrls(websiteInfo: WebsiteInfo)
-                         (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[String]]
+  def fetchAuctionUrls(websiteInfo: WebsiteConfig)
+                      (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
-  def validateAuction(auctionUrl: String)
-                     (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
+  def fetchAuction(auctionUrl: String)
+                  (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
 
     (validateAuctionType,
-      validateId, auctionUrl.validNec, validateTitle, validateIsSold,
+      nextBatchId.validNec,
+      validateExternalId,
+      auctionUrl.validNec,
+      validateTitle,
+      validateIsSold,
       validateSellerNickname, validateSellerLocation,
       validateStartPrice, validateFinalPrice,
       validateStartDate, validateEndDate,
@@ -35,7 +39,9 @@ trait AuctionValidator {
       validateBids).mapN(CreateAuction.apply)
   }
 
-  def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String]
+  def nextBatchId: String
+
+  def validateExternalId(implicit htmlDoc: JsoupDocument): ValidationResult[String]
 
   def validateTitle(implicit htmlDoc: JsoupDocument): ValidationResult[String]
 

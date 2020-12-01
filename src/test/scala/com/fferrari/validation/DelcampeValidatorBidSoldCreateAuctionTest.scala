@@ -22,11 +22,11 @@ class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matcher
   val htmlDoc: JsoupBrowser.JsoupDocument = jsoupBrowser.get(BID_TYPE_SOLD_URL)
 
   it should "extract the auction ID for a SOLD auction of BID type" in {
-    delcampeValidator.validateId(htmlDoc) shouldBe Valid("1120841389")
+    delcampeValidator.validateExternalId(htmlDoc) shouldBe Valid("1120841389")
   }
   it should "produce a IdNotFound from some invalid HTML string" in {
     val htmlString = """<div id="confirm_question_modal"></div>"""
-    delcampeValidator.validateId(jsoupBrowser.parseString(htmlString)) shouldBe Invalid(Chain(IdNotFound))
+    delcampeValidator.validateExternalId(jsoupBrowser.parseString(htmlString)) shouldBe Invalid(Chain(IdNotFound))
   }
 
   it should "extract the auction TITLE for a SOLD auction of BID type" in {

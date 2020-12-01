@@ -4,7 +4,6 @@ import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.actor.AuctionScrapperProtocol.WebsiteInfo
 import com.fferrari.model._
 import com.fferrari.scrapper.DelcampeUtil
 import com.fferrari.scrapper.DelcampeUtil.relativeToAbsoluteUrl
@@ -28,11 +27,11 @@ class DelcampeValidator extends AuctionValidator {
   val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
   val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  override def validateListingPage(websiteInfo: WebsiteInfo,
-                                   getPage: String => Try[JsoupDocument],
-                                   itemsPerPage: Int,
-                                   pageNumber: Int = 1)
-                                  (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
+  override def fetchListingPage(websiteInfo: WebsiteConfig,
+                                getPage: String => Try[JsoupDocument],
+                                itemsPerPage: Int,
+                                pageNumber: Int = 1)
+                               (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
     def checkPageValidity(htmlDoc: JsoupDocument): ValidationResult[JsoupDocument] = {
       if ((htmlDoc >> texts("div.items.main div h2"))
         .toList
@@ -49,12 +48,45 @@ class DelcampeValidator extends AuctionValidator {
       .getOrElse(ListingPageNotFound.invalidNec)
   }
 
-  override def validateAuctionUrls(websiteInfo: WebsiteInfo)
-                                  (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], List[String]] = {
+  override def fetchAuctionUrls(websiteConfig: WebsiteConfig)
+                               (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
+
+    def fetchLinks(el: Element): ValidationResult[BatchAuctionAndThumbnailLink] = {
+      val auctionUrl: ValidationResult[String] =
+        (el >?> attr("href")("div.item-info a.item-link"))
+          .map(relativeToAbsoluteUrl(websiteConfig.url, _).validNec)
+          .getOrElse(AuctionLinkNotFound.invalidNec)
+
+      val thumbUrl: ValidationResult[String] =
+        (el >?> attr("src")("img.image-thumb"))
+          .map(_.validNec)
+          .getOrElse(ThumbnailLinkNotFound.invalidNec)
+
+      (auctionUrl, thumbUrl).mapN(BatchAuctionAndThumbnailLink)
+    }
+
+    (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos"))
+      .map(fetchLinks)
+      .sequence
+      .map { batchAuctionLink =>
+        websiteConfig.lastScrappedUrl match {
+          case Some(lastScrappedUrl) if batchAuctionLink.map(_.auctionUrl).contains(lastScrappedUrl) =>
+            // Keep only the auction urls that have not yet been processed (since the last run)
+            batchAuctionLink.takeWhile(_.auctionUrl != lastScrappedUrl)
+          case _ =>
+            batchAuctionLink
+        }
+      }
+      .map(Batch(nextBatchId, websiteConfig, _))
+  }
+
+  /*
+  override def fetchAuctionUrls(websiteConfig: WebsiteConfig)
+                               (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
 
     def fetchLink(el: Element): ValidationResult[String] = {
       (el >?> attr("href"))
-        .map(link => relativeToAbsoluteUrl(websiteInfo.url, link).validNec)
+        .map(link => relativeToAbsoluteUrl(websiteConfig.url, link).validNec)
         .getOrElse(AuctionLinkNotFound.invalidNec)
     }
 
@@ -62,7 +94,7 @@ class DelcampeValidator extends AuctionValidator {
       .map(fetchLink)
       .sequence
       .map { urls =>
-        websiteInfo.lastScrappedUrl match {
+        websiteConfig.lastScrappedUrl match {
           case Some(lastScrappedUrl) if urls.contains(lastScrappedUrl) =>
             // Keep only the auction urls that have not yet been processed (since the last run)
             urls.takeWhile(_ != lastScrappedUrl)
@@ -70,9 +102,15 @@ class DelcampeValidator extends AuctionValidator {
             urls
         }
       }
+      .map(Batch(nextBatchId, websiteConfig, _))
+  }
+   */
+
+  override def nextBatchId: String = {
+    java.util.UUID.randomUUID().toString
   }
 
-  override def validateId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
+  override def validateExternalId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
     (htmlDoc >?> attr("data-id")("div#confirm_question_modal"))
       .map(_.validNec)
       .getOrElse(IdNotFound.invalidNec)

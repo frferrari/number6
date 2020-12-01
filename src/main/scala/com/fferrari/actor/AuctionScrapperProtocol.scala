@@ -14,9 +14,10 @@ object AuctionScrapperProtocol {
 
   final case object ExtractAuctionUrls extends PriceScrapperCommand
 
-  final case class ExtractAuctions(auctionUrls: Seq[String]) extends PriceScrapperCommand
+  final case class ExtractAuctions(urlBatch: Batch) extends PriceScrapperCommand
 
   sealed trait CreateAuction extends PriceScrapperCommand {
+    val batchId: String
     val externalId: String
     val url: String
     val title: String
@@ -32,6 +33,7 @@ object AuctionScrapperProtocol {
 
   object CreateAuction {
     def apply(auctionType: AuctionType,
+              batchId: String,
               externalId: String,
               url: String,
               title: String,
@@ -47,6 +49,7 @@ object AuctionScrapperProtocol {
       auctionType match {
         case BidType =>
           CreateAuctionBid(
+            batchId,
             externalId,
             url,
             title,
@@ -61,6 +64,7 @@ object AuctionScrapperProtocol {
             bids)
         case FixedPriceType =>
           CreateAuctionFixedPrice(
+            batchId,
             externalId,
             url,
             title,
@@ -76,7 +80,8 @@ object AuctionScrapperProtocol {
       }
   }
 
-  final case class CreateAuctionBid(externalId: String,
+  final case class CreateAuctionBid(batchId: String,
+                                    externalId: String,
                                     url: String,
                                     title: String,
                                     isSold: Boolean,
@@ -89,7 +94,8 @@ object AuctionScrapperProtocol {
                                     largeImageUrl: String,
                                     bids: List[Bid]) extends CreateAuction
 
-  final case class CreateAuctionFixedPrice(externalId: String,
+  final case class CreateAuctionFixedPrice(batchId: String,
+                                           externalId: String,
                                            url: String,
                                            title: String,
                                            isSold: Boolean,
@@ -103,7 +109,4 @@ object AuctionScrapperProtocol {
                                            bid: Option[Bid]) extends CreateAuction
 
   final case class ScrapAuction(url: String) extends PriceScrapperCommand
-
-  case class WebsiteInfo(website: Website, url: String, lastScrappedUrl: Option[String])
-
 }
