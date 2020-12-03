@@ -2,7 +2,7 @@ package com.fferrari.validation
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Batch, BatchAuctionAndThumbnailLink, BidType, Delcampe, WebsiteConfig}
+import com.fferrari.model.{Batch, BatchAuctionLink, BidType, Delcampe, WebsiteConfig}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import org.scalatest.flatspec.AnyFlatSpec
@@ -52,9 +52,9 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
     delcampeValidator.fetchAuctionUrls(websiteConfig)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
       Valid(
         List(
-          BatchAuctionAndThumbnailLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
-          BatchAuctionAndThumbnailLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
-          BatchAuctionAndThumbnailLink("http://www.example.com/auction3", "http://www.example.com/img_thumb/3.jpg")
+          BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+          BatchAuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
+          BatchAuctionLink("http://www.example.com/auction3", "http://www.example.com/img_thumb/3.jpg")
         )
       )
   }
@@ -93,8 +93,8 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
     delcampeValidator.fetchAuctionUrls(websiteConfig)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
       Valid(
         List(
-          BatchAuctionAndThumbnailLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
-          BatchAuctionAndThumbnailLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
+          BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+          BatchAuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
         )
       )
   }

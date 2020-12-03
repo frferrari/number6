@@ -3,7 +3,7 @@ package com.fferrari.validation
 import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
-import cats.implicits.{catsSyntaxTuple14Semigroupal, catsSyntaxValidatedIdBinCompat0}
+import cats.implicits.{catsSyntaxTuple15Semigroupal, catsSyntaxValidatedIdBinCompat0}
 import com.fferrari.actor.AuctionScrapperProtocol.CreateAuction
 import com.fferrari.model._
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
@@ -22,19 +22,20 @@ trait AuctionValidator {
   def fetchAuctionUrls(websiteInfo: WebsiteConfig)
                       (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
-  def fetchAuction(auctionUrl: String)
+  def fetchAuction(batchAuctionLink: BatchAuctionLink, batchId: String)
                   (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
-    implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(auctionUrl)
+    implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(batchAuctionLink.auctionUrl)
 
     (validateAuctionType,
-      nextBatchId.validNec,
+      batchId.validNec,
       validateExternalId,
-      auctionUrl.validNec,
+      batchAuctionLink.auctionUrl.validNec,
       validateTitle,
       validateIsSold,
       validateSellerNickname, validateSellerLocation,
       validateStartPrice, validateFinalPrice,
       validateStartDate, validateEndDate,
+      batchAuctionLink.thumbUrl.validNec,
       validateLargeImageUrl,
       validateBids).mapN(CreateAuction.apply)
   }

@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
+import com.fferrari.actor.AuctionScrapperProtocol.CreateAuction
 import com.fferrari.model._
 import com.fferrari.scrapper.DelcampeUtil
 import com.fferrari.scrapper.DelcampeUtil.relativeToAbsoluteUrl
@@ -51,7 +52,7 @@ class DelcampeValidator extends AuctionValidator {
   override def fetchAuctionUrls(websiteConfig: WebsiteConfig)
                                (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
 
-    def fetchLinks(el: Element): ValidationResult[BatchAuctionAndThumbnailLink] = {
+    def fetchLinks(el: Element): ValidationResult[BatchAuctionLink] = {
       val auctionUrl: ValidationResult[String] =
         (el >?> attr("href")("div.item-info a.item-link"))
           .map(relativeToAbsoluteUrl(websiteConfig.url, _).validNec)
@@ -62,7 +63,7 @@ class DelcampeValidator extends AuctionValidator {
           .map(_.validNec)
           .getOrElse(ThumbnailLinkNotFound.invalidNec)
 
-      (auctionUrl, thumbUrl).mapN(BatchAuctionAndThumbnailLink)
+      (auctionUrl, thumbUrl).mapN(BatchAuctionLink)
     }
 
     (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos"))
@@ -79,32 +80,6 @@ class DelcampeValidator extends AuctionValidator {
       }
       .map(Batch(nextBatchId, websiteConfig, _))
   }
-
-  /*
-  override def fetchAuctionUrls(websiteConfig: WebsiteConfig)
-                               (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
-
-    def fetchLink(el: Element): ValidationResult[String] = {
-      (el >?> attr("href"))
-        .map(link => relativeToAbsoluteUrl(websiteConfig.url, link).validNec)
-        .getOrElse(AuctionLinkNotFound.invalidNec)
-    }
-
-    (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos div.item-info a.item-link"))
-      .map(fetchLink)
-      .sequence
-      .map { urls =>
-        websiteConfig.lastScrappedUrl match {
-          case Some(lastScrappedUrl) if urls.contains(lastScrappedUrl) =>
-            // Keep only the auction urls that have not yet been processed (since the last run)
-            urls.takeWhile(_ != lastScrappedUrl)
-          case _ =>
-            urls
-        }
-      }
-      .map(Batch(nextBatchId, websiteConfig, _))
-  }
-   */
 
   override def nextBatchId: String = {
     java.util.UUID.randomUUID().toString

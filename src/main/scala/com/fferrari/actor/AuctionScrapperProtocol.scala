@@ -28,6 +28,7 @@ object AuctionScrapperProtocol {
     val finalPrice: Option[Price]
     val startDate: LocalDateTime
     val endDate: Option[LocalDateTime]
+    val thumbnailUrl: String
     val largeImageUrl: String
   }
 
@@ -44,6 +45,7 @@ object AuctionScrapperProtocol {
               finalPrice: Option[Price],
               startDate: LocalDateTime,
               endDate: Option[LocalDateTime],
+              thumbnailUrl: String,
               largeImageUrl: String,
               bids: List[Bid]): CreateAuction =
       auctionType match {
@@ -60,6 +62,7 @@ object AuctionScrapperProtocol {
             finalPrice,
             startDate,
             endDate,
+            thumbnailUrl,
             largeImageUrl,
             bids)
         case FixedPriceType =>
@@ -75,6 +78,7 @@ object AuctionScrapperProtocol {
             finalPrice,
             startDate,
             endDate,
+            thumbnailUrl,
             largeImageUrl,
             bids.headOption)
       }
@@ -91,6 +95,7 @@ object AuctionScrapperProtocol {
                                     finalPrice: Option[Price],
                                     startDate: LocalDateTime,
                                     endDate: Option[LocalDateTime],
+                                    thumbnailUrl: String,
                                     largeImageUrl: String,
                                     bids: List[Bid]) extends CreateAuction
 
@@ -105,6 +110,7 @@ object AuctionScrapperProtocol {
                                            finalPrice: Option[Price],
                                            startDate: LocalDateTime,
                                            endDate: Option[LocalDateTime],
+                                           thumbnailUrl: String,
                                            largeImageUrl: String,
                                            bid: Option[Bid]) extends CreateAuction
 

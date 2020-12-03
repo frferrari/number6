@@ -82,13 +82,13 @@ object AuctionScrapperActor {
               moveToNextWebsite(websiteConfigs, websiteConfigsIdx)
           }
 
-        case (context, ExtractAuctions(batch@Batch(_, _, batchAuctionLinks))) =>
+        case (context, ExtractAuctions(batch@Batch(batchId, _, batchAuctionLinks))) =>
 
           batchAuctionLinks match {
             case batchAuctionLink :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: ${batchAuctionLink.auctionUrl}")
 
-              auctionValidator.fetchAuction(batchAuctionLink.auctionUrl) match {
+              auctionValidator.fetchAuction(batchAuctionLink, batchId) match {
                 case Valid(auction) =>
                   context.log.info(s"Auction fetched successfully ${auction.url}")
                   timers.startSingleTimer(ExtractAuctions(batch.copy(auctionUrls = remainingAuctionUrls)), randomDurationMs())
