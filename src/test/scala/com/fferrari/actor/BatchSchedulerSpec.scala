@@ -9,14 +9,14 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
 
-object AkkaTestConfig {
+object BatchSchedulerTestConfig {
   val config: Config =
     ConfigFactory
       .defaultApplication()
       .withOnlyPath("akka.actor")
 }
 
-class BatchSchedulerSpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTestKit.config.withFallback(AkkaTestConfig.config))
+class BatchSchedulerSpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTestKit.config.withFallback(BatchSchedulerTestConfig.config))
   with AnyWordSpecLike
   with BeforeAndAfterEach
   with BatchSchedulerSpecFixture {
@@ -37,6 +37,55 @@ class BatchSchedulerSpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorT
       result.reply shouldBe StatusReply.Ack
       result.event shouldBe BatchScheduler.BatchSpecificationAdded(batchSpecification1)
       result.stateOfType[BatchScheduler.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
+    }
+    "SUCCEED Adding two different specifications" in {
+      val result1 = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      result1.reply shouldBe StatusReply.Ack
+      result1.event shouldBe BatchScheduler.BatchSpecificationAdded(batchSpecification1)
+      result1.stateOfType[BatchScheduler.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
+
+      val result2 = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification2, _))
+      result2.reply shouldBe StatusReply.Ack
+      result2.event shouldBe BatchScheduler.BatchSpecificationAdded(batchSpecification2)
+      result2.stateOfType[BatchScheduler.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2))
+    }
+    "FAIL Adding an existing specification" in {
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      result.reply.isError shouldBe true
+      result.hasNoEvents shouldBe true
+    }
+
+    "SUCCEED Updating the lastUrl for an existing batch specification" in {
+      val lastUrl = "http://lasturl.com"
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification2, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.UpdateLastUrl(batchSpecification2.name, lastUrl, _))
+      result.reply shouldBe StatusReply.Ack
+      result.event shouldBe BatchScheduler.LastUrlUpdated(batchSpecification2.name, lastUrl)
+      result.stateOfType[BatchScheduler.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(lastUrl)))
+    }
+    "FAIL Updating the lastUrl for an unknown batch specification" in {
+      val lastUrl = "http://lasturl.com"
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.UpdateLastUrl(batchSpecification2.name, lastUrl, _))
+      result.reply.isError shouldBe true
+      result.hasNoEvents shouldBe true
+    }
+
+    "SUCCEED Pausing an existing batch specification" in {
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification2, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.PauseBatchSpecification(batchSpecification2.name, _))
+      result.reply shouldBe StatusReply.Ack
+      result.event shouldBe BatchScheduler.BatchSpecificationPaused(batchSpecification2.name)
+      result.stateOfType[BatchScheduler.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(paused = true)))
+    }
+    "FAIL Pausing an unknown batch specification" in {
+      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.AddBatchSpecification(batchSpecification1, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchScheduler.PauseBatchSpecification(batchSpecification2.name, _))
+      result.reply.isError shouldBe true
+      result.hasNoEvents shouldBe true
     }
   }
 }

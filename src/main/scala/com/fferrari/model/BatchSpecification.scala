@@ -5,6 +5,7 @@ case class BatchSpecification(name: String,
                               provider: String,
                               url: String,
                               intervalSeconds: Long,
+                              paused: Boolean = false,
                               lastScrappedTimestamp: Long = 0L,
                               lastUrlScrapped: Option[String] = None
                              ) {

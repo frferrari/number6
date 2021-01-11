@@ -17,14 +17,15 @@ object BatchScheduler {
   sealed trait Command
   case class AddBatchSpecification(batchSpecification: BatchSpecification, replyTo: ActorRef[StatusReply[Done]]) extends Command
   case object ProcessNextBatchSpecification extends Command
-  case class UpdateLastUrl(batchSpecificationName: String, lastUrl: String) extends Command
+  case class UpdateLastUrl(batchSpecificationName: String, lastUrl: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  case class PauseBatchSpecification(batchSpecificationName: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
   // case class PauseProvider(provider: String) extends Command
-  // case class PauseBatchSpecification(name: String) extends Command
 
   sealed trait Event
   final case class BatchSpecificationAdded(batchSpecification: BatchSpecification) extends Event
   final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification) extends Event
   final case class LastUrlUpdated(batchSpecificationName: String, lastUrl: String) extends Event
+  final case class BatchSpecificationPaused(batchSpecificationName: String) extends Event
 
   final case class State(batchSpecifications: List[BatchSpecification])
 
@@ -72,10 +73,23 @@ object BatchScheduler {
             Effect.noReply
         }
 
-      case UpdateLastUrl(batchSpecificationName: String, lastUrl: String) =>
+      case UpdateLastUrl(batchSpecificationName, lastUrl, replyTo) =>
         state.batchSpecifications
           .find(_.name == batchSpecificationName)
-          .fold[ReplyEffect[Event, State]](Effect.noReply)(_ => Effect.persist(LastUrlUpdated(batchSpecificationName, lastUrl)).thenNoReply())
+          .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationName}, can't update the lastUrl"))) { _ =>
+            Effect
+              .persist(LastUrlUpdated(batchSpecificationName, lastUrl))
+              .thenReply(replyTo)(_ => StatusReply.Ack)
+          }
+
+      case PauseBatchSpecification(batchSpecificationName, replyTo) =>
+        state.batchSpecifications
+        .find(_.name == batchSpecificationName)
+        .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationName}, can't pause it"))) { _ =>
+          Effect
+            .persist(BatchSpecificationPaused(batchSpecificationName))
+            .thenReply(replyTo)(_ => StatusReply.Ack)
+        }
     }
 
   def eventHandler(state: State, event: Event): State =
@@ -95,6 +109,14 @@ object BatchScheduler {
         val idx = state.batchSpecifications.indexWhere(_.name == batchSpecificationName)
         if (idx >= 0) {
           val newBatchSpecification = state.batchSpecifications(idx).copy(lastUrl)
+          state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
+        } else
+          state
+
+      case BatchSpecificationPaused(batchSpecificationName) =>
+        val idx = state.batchSpecifications.indexWhere(_.name == batchSpecificationName)
+        if (idx >= 0) {
+          val newBatchSpecification = state.batchSpecifications(idx).copy(paused = true)
           state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
         } else
           state
