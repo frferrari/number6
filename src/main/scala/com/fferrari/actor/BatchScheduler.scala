@@ -17,15 +17,15 @@ object BatchScheduler {
   sealed trait Command
   case class AddBatchSpecification(batchSpecification: BatchSpecification, replyTo: ActorRef[StatusReply[Done]]) extends Command
   case object ProcessNextBatchSpecification extends Command
-  case class UpdateLastUrl(batchSpecificationName: String, lastUrl: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
-  case class PauseBatchSpecification(batchSpecificationName: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  case class UpdateLastUrl(batchSpecificationId: String, lastUrl: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  case class PauseBatchSpecification(batchSpecificationId: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
   // case class PauseProvider(provider: String) extends Command
 
   sealed trait Event
   final case class BatchSpecificationAdded(batchSpecification: BatchSpecification) extends Event
   final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification) extends Event
-  final case class LastUrlUpdated(batchSpecificationName: String, lastUrl: String) extends Event
-  final case class BatchSpecificationPaused(batchSpecificationName: String) extends Event
+  final case class LastUrlUpdated(batchSpecificationId: String, lastUrl: String) extends Event
+  final case class BatchSpecificationPaused(batchSpecificationId: String) extends Event
 
   final case class State(batchSpecifications: List[BatchSpecification])
 
@@ -73,21 +73,21 @@ object BatchScheduler {
             Effect.noReply
         }
 
-      case UpdateLastUrl(batchSpecificationName, lastUrl, replyTo) =>
+      case UpdateLastUrl(batchSpecificationId, lastUrl, replyTo) =>
         state.batchSpecifications
-          .find(_.name == batchSpecificationName)
-          .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationName}, can't update the lastUrl"))) { _ =>
+          .find(_.id == batchSpecificationId)
+          .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationId}, can't update the lastUrl"))) { _ =>
             Effect
-              .persist(LastUrlUpdated(batchSpecificationName, lastUrl))
+              .persist(LastUrlUpdated(batchSpecificationId, lastUrl))
               .thenReply(replyTo)(_ => StatusReply.Ack)
           }
 
-      case PauseBatchSpecification(batchSpecificationName, replyTo) =>
+      case PauseBatchSpecification(batchSpecificationId, replyTo) =>
         state.batchSpecifications
-        .find(_.name == batchSpecificationName)
-        .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationName}, can't pause it"))) { _ =>
+        .find(_.id == batchSpecificationId)
+        .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationId}, can't pause it"))) { _ =>
           Effect
-            .persist(BatchSpecificationPaused(batchSpecificationName))
+            .persist(BatchSpecificationPaused(batchSpecificationId))
             .thenReply(replyTo)(_ => StatusReply.Ack)
         }
     }
@@ -100,21 +100,21 @@ object BatchScheduler {
       case NextBatchSpecificationProcessed(batchSpecification) if state.batchSpecifications.exists(_.name == batchSpecification.name) =>
         val idx = state.batchSpecifications.indexWhere(_.name == batchSpecification.name)
         if (idx >= 0) {
-          val newBatchSpecification = batchSpecification.copy(lastScrappedTimestamp = java.time.Instant.now().getEpochSecond)
+          val newBatchSpecification = batchSpecification.copy(updatedAt = java.time.Instant.now().getEpochSecond)
           state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
         } else
           state
 
-      case LastUrlUpdated(batchSpecificationName, lastUrl) =>
-        val idx = state.batchSpecifications.indexWhere(_.name == batchSpecificationName)
+      case LastUrlUpdated(batchSpecificationId, lastUrl) =>
+        val idx = state.batchSpecifications.indexWhere(_.id == batchSpecificationId)
         if (idx >= 0) {
           val newBatchSpecification = state.batchSpecifications(idx).copy(lastUrl)
           state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
         } else
           state
 
-      case BatchSpecificationPaused(batchSpecificationName) =>
-        val idx = state.batchSpecifications.indexWhere(_.name == batchSpecificationName)
+      case BatchSpecificationPaused(batchSpecificationId) =>
+        val idx = state.batchSpecifications.indexWhere(_.id == batchSpecificationId)
         if (idx >= 0) {
           val newBatchSpecification = state.batchSpecifications(idx).copy(paused = true)
           state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
