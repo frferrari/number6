@@ -1,0 +1,112 @@
+package com.fferrari.actor
+
+import akka.Done
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
+import akka.actor.typed.{ActorRef, Behavior}
+import akka.pattern.StatusReply
+import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
+import com.fferrari.model.BatchSpecification
+
+import scala.concurrent.duration._
+
+object BatchScheduler {
+
+  val actorName = "batch-scheduler"
+
+  sealed trait Command
+  case class AddBatchSpecification(batchSpecification: BatchSpecification, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  case object ProcessNextBatchSpecification extends Command
+  case class UpdateLastUrl(batchSpecificationName: String, lastUrl: String) extends Command
+  // case class PauseProvider(provider: String) extends Command
+  // case class PauseBatchSpecification(name: String) extends Command
+
+  sealed trait Event
+  final case class BatchSpecificationAdded(batchSpecification: BatchSpecification) extends Event
+  final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification) extends Event
+  final case class LastUrlUpdated(batchSpecificationName: String, lastUrl: String) extends Event
+
+  final case class State(batchSpecifications: List[BatchSpecification])
+
+  // TODO: how to remove this var?
+  var batchIdx = 0
+
+  def apply(): Behavior[Command] = Behaviors.setup { context =>
+    // Allows to start rolling through batch specifications
+    context.self ! ProcessNextBatchSpecification
+
+    Behaviors.withTimers[Command] { timers =>
+      EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+        persistenceId = PersistenceId.ofUniqueId(actorName),
+        emptyState = State(Nil),
+        commandHandler = commandHandler(context, timers),
+        eventHandler = eventHandler
+      )
+    }
+  }
+
+  def commandHandler(context: ActorContext[Command], timers: TimerScheduler[Command])
+                    (state: State, command: Command): ReplyEffect[Event, State] =
+    command match {
+      case AddBatchSpecification(batchSpecification, replyTo) =>
+        if (!state.batchSpecifications.exists(_.name == batchSpecification.name))
+          Effect
+            .persist(BatchSpecificationAdded(batchSpecification))
+            .thenReply(replyTo)(_ => StatusReply.Ack)
+        else
+          Effect
+            .reply(replyTo)(StatusReply.Error(s"BatchSpecification ${batchSpecification.name} already exists"))
+
+      case ProcessNextBatchSpecification =>
+        state.batchSpecifications.lift(batchIdx) match {
+          case Some(batchSpecification) if batchSpecification.needsUpdate() =>
+            context.log.info(s"Scrapping ${batchSpecification.url}")
+            // TODO send a message to the proper scrapper
+            Effect
+              .persist(NextBatchSpecificationProcessed(batchSpecification))
+              .thenNoReply()
+
+          case _ =>
+            timers.startSingleTimer(ProcessNextBatchSpecification, 60.seconds)
+            nextBatchIdx(state)
+            Effect.noReply
+        }
+
+      case UpdateLastUrl(batchSpecificationName: String, lastUrl: String) =>
+        state.batchSpecifications
+          .find(_.name == batchSpecificationName)
+          .fold[ReplyEffect[Event, State]](Effect.noReply)(_ => Effect.persist(LastUrlUpdated(batchSpecificationName, lastUrl)).thenNoReply())
+    }
+
+  def eventHandler(state: State, event: Event): State =
+    event match {
+      case BatchSpecificationAdded(batchSpecification) =>
+        state.copy(batchSpecifications = state.batchSpecifications :+ batchSpecification)
+
+      case NextBatchSpecificationProcessed(batchSpecification) if state.batchSpecifications.exists(_.name == batchSpecification.name) =>
+        val idx = state.batchSpecifications.indexWhere(_.name == batchSpecification.name)
+        if (idx >= 0) {
+          val newBatchSpecification = batchSpecification.copy(lastScrappedTimestamp = java.time.Instant.now().getEpochSecond)
+          state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
+        } else
+          state
+
+      case LastUrlUpdated(batchSpecificationName, lastUrl) =>
+        val idx = state.batchSpecifications.indexWhere(_.name == batchSpecificationName)
+        if (idx >= 0) {
+          val newBatchSpecification = state.batchSpecifications(idx).copy(lastUrl)
+          state.copy(batchSpecifications = state.batchSpecifications.updated(idx, newBatchSpecification))
+        } else
+          state
+    }
+
+  /**
+   * Moves to the next batch specification to process
+   * @param state The state containing the batch specifications
+   */
+  def nextBatchIdx(state: State): Unit =
+    if (batchIdx + 1 < state.batchSpecifications.size)
+      batchIdx = batchIdx + 1
+    else
+      batchIdx = 0
+}
