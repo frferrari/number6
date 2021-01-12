@@ -12,6 +12,7 @@ import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import scala.util.Try
 
 object AuctionScrapperActor {
+  val actorName = "auction-scrapper"
   val itemsPerPage: Int = 480
 
   def getPage(url: String): Try[JsoupBrowser.JsoupDocument] = Try(jsoupBrowser.get(url))
@@ -25,7 +26,7 @@ object AuctionScrapperActor {
       WebsiteConfig(Delcampe, "https://www.delcampe.net/en_US/collectibles/search?term=&categories%5B%5D=3268&search_mode=all&duration_selection=all", None)
     )
 
-    context.self ! ExtractUrls
+    // context.self ! ExtractUrls
 
     processWebsites(websiteConfigs)
   }

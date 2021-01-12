@@ -6,6 +6,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
+import com.fferrari.actor.AuctionScrapperProtocol.PriceScrapperCommand
 import com.fferrari.model.BatchSpecification
 
 import scala.concurrent.duration._
@@ -32,7 +33,7 @@ object BatchScheduler {
   // TODO: how to remove this var?
   var batchIdx = 0
 
-  def apply(): Behavior[Command] = Behaviors.setup { context =>
+  def apply(auctionScrapper: ActorRef[PriceScrapperCommand]): Behavior[Command] = Behaviors.setup { context =>
     // Allows to start rolling through batch specifications
     context.self ! ProcessNextBatchSpecification
 
@@ -97,7 +98,7 @@ object BatchScheduler {
       case BatchSpecificationAdded(batchSpecification) =>
         state.copy(batchSpecifications = state.batchSpecifications :+ batchSpecification)
 
-      case NextBatchSpecificationProcessed(batchSpecification) if state.batchSpecifications.exists(_.name == batchSpecification.name) =>
+      case NextBatchSpecificationProcessed(batchSpecification) =>
         val idx = state.batchSpecifications.indexWhere(_.name == batchSpecification.name)
         if (idx >= 0) {
           val newBatchSpecification = batchSpecification.copy(updatedAt = java.time.Instant.now().getEpochSecond)
