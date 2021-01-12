@@ -9,8 +9,8 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.fferrari.actor.AuctionScrapperProtocol.PriceScrapperCommand
-import com.fferrari.actor.{AuctionScrapperActor, BatchScheduler}
+import com.fferrari.actor.AuctionScraperProtocol.AuctionScraperCommand
+import com.fferrari.actor.{AuctionScraperActor, BatchManagerActor, BatchSchedulerActor}
 import com.fferrari.model.{BatchSpecification, BatchSpecificationJsonProtocol}
 
 import scala.concurrent.ExecutionContextExecutor
@@ -27,12 +27,13 @@ object PriceScrapper
   implicit val executionContext: ExecutionContextExecutor = actorSystem.executionContext
 
   def mainBehavior: Behavior[Command] = Behaviors.setup { context =>
-    // Start a pool of auction scrapper
-    val pool = Routers.pool(poolSize = 5)(Behaviors.supervise(AuctionScrapperActor()).onFailure[Exception](SupervisorStrategy.restart))
-    val auctionScrapperRouter: ActorRef[PriceScrapperCommand] = context.spawn(pool, AuctionScrapperActor.actorName)
+    // Start the batch manage actor
+    val batchManager: ActorRef[BatchManagerActor.Command] =
+      context.spawn(BatchManagerActor(), BatchManagerActor.actorName)
 
-    // Start a batch scheduler
-    val batchScheduler = context.spawn(BatchScheduler(auctionScrapperRouter), BatchScheduler.actorName)
+    // Start the batch scheduler actor
+    val batchScheduler: ActorRef[BatchSchedulerActor.Command] =
+      context.spawn(BatchSchedulerActor(batchManager), BatchSchedulerActor.actorName)
 
     val routes: Route =
       path("specification/add") {
@@ -40,7 +41,7 @@ object PriceScrapper
           entity(as[BatchSpecification]) { batchSpecification =>
             onComplete {
               implicit val timeout: Timeout = 3.seconds
-              batchScheduler.ask(ref => BatchScheduler.AddBatchSpecification(batchSpecification, ref))
+              batchScheduler.ask(ref => BatchSchedulerActor.AddBatchSpecification(batchSpecification, ref))
             } { x =>
               println(s"onComplete ====> $x")
               complete(StatusCodes.OK)

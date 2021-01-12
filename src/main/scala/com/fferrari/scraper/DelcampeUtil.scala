@@ -1,4 +1,4 @@
-package com.fferrari.scrapper
+package com.fferrari.scraper
 
 import java.time.LocalDateTime
 

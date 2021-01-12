@@ -1,17 +1,18 @@
 package com.fferrari.actor
 
 import akka.Done
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, TimerScheduler}
+import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
-import com.fferrari.actor.AuctionScrapperProtocol.PriceScrapperCommand
+import com.fferrari.actor.AuctionScraperProtocol.AuctionScraperCommand
 import com.fferrari.model.BatchSpecification
+import com.fferrari.validation.DelcampeValidator
 
 import scala.concurrent.duration._
 
-object BatchScheduler {
+object BatchSchedulerActor {
 
   val actorName = "batch-scheduler"
 
@@ -30,10 +31,18 @@ object BatchScheduler {
 
   final case class State(batchSpecifications: List[BatchSpecification])
 
+  case class Scrapers(delcampeScraperRouter: ActorRef[AuctionScraperCommand])
+
   // TODO: how to remove this var?
   var batchIdx = 0
 
-  def apply(auctionScrapper: ActorRef[PriceScrapperCommand]): Behavior[Command] = Behaviors.setup { context =>
+  def apply(): Behavior[Command] = Behaviors.setup { context =>
+    // Start the scrapers actors
+    val scrappers = spawnScrappers(context)
+
+    // Keep an eye on the scrappers
+    context.watch(scrappers.delcampeScraperRouter) // TODO implement handling of messages
+
     // Allows to start rolling through batch specifications
     context.self ! ProcessNextBatchSpecification
 
@@ -66,6 +75,7 @@ object BatchScheduler {
             // TODO send a message to the proper scrapper
             Effect
               .persist(NextBatchSpecificationProcessed(batchSpecification))
+              // .thenRun()
               .thenNoReply()
 
           case _ =>
@@ -132,4 +142,24 @@ object BatchScheduler {
       batchIdx = batchIdx + 1
     else
       batchIdx = 0
+
+  /**
+   * Allows to spawn actors that will handle scrapping auctions from the different web sites that will be our sources
+   * of prices.
+   * We use routers to create actors so that we have a pool of actors for each provider (web sites)
+   * @param context An actor context to allow to spawn actors
+   * @return A class containing the actor ref of the different routers for the different providers
+   */
+  def spawnScrappers(context: ActorContext[Command]): Scrapers = {
+    // Start a pool of DELCAMPE auction scrapper
+    val pool =
+      Routers
+        .pool(poolSize = 5) {
+          Behaviors
+            .supervise(AuctionScraperActor(() => new DelcampeValidator)).onFailure[Exception](SupervisorStrategy.restart)
+        }
+    val delcampeScraperRouter: ActorRef[AuctionScraperCommand] = context.spawn(pool, AuctionScraperActor.actorName)
+
+    Scrapers(delcampeScraperRouter)
+  }
 }

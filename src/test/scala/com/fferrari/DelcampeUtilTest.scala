@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.model.Price
-import com.fferrari.scrapper.DelcampeUtil
+import com.fferrari.scraper.DelcampeUtil
 import com.fferrari.validation.{InvalidBidQuantityFormat, InvalidDateFormat, InvalidPriceFormat, InvalidShortDateFormat}
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec

@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
 import cats.implicits.{catsSyntaxTuple15Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.actor.AuctionScrapperProtocol.CreateAuction
+import com.fferrari.actor.AuctionScraperProtocol.CreateAuction
 import com.fferrari.model._
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
@@ -13,13 +13,14 @@ import scala.util.Try
 
 trait AuctionValidator {
 
-  def fetchListingPage(websiteInfo: WebsiteConfig,
+  def itemsPerPage: Int
+
+  def fetchListingPage(batchSpecification: BatchSpecification,
                        getPage: String => Try[JsoupDocument],
-                       itemsPerPage: Int,
                        pageNumber: Int = 1)
                       (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
-  def fetchAuctionUrls(websiteInfo: WebsiteConfig)
+  def fetchAuctionUrls(batchSpecification: BatchSpecification)
                       (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
   def fetchAuction(batchAuctionLink: BatchAuctionLink, batchId: String)

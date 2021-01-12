@@ -2,22 +2,20 @@ package com.fferrari.actor
 
 import java.time.LocalDateTime
 
+import akka.actor.typed.receptionist.Receptionist
 import com.fferrari.model._
 
-object AuctionScrapperProtocol {
+object AuctionScraperProtocol {
 
-  sealed trait PriceScrapperCommand
+  sealed trait AuctionScraperCommand
+  final case object LookupBatchManager extends AuctionScraperCommand
+  final case object ExtractUrls extends AuctionScraperCommand
+  final case class ExtractListingPageUrls(batchSpecification: BatchSpecification, pageNumber: Int = 1) extends AuctionScraperCommand
+  final case class ExtractAuctions(batchSpecification: BatchSpecification, urlBatch: Batch, pageNumber: Int) extends AuctionScraperCommand
+  final case class ListingResponse(listing: Receptionist.Listing) extends AuctionScraperCommand
 
-  final case class ScrapWebsite(website: Website) extends PriceScrapperCommand
-
-  final case object ExtractUrls extends PriceScrapperCommand
-
-  final case object ExtractAuctionUrls extends PriceScrapperCommand
-
-  final case class ExtractAuctions(urlBatch: Batch) extends PriceScrapperCommand
-
-  sealed trait CreateAuction extends PriceScrapperCommand {
-    val batchId: String
+  sealed trait CreateAuction extends AuctionScraperCommand {
+    val batchSpecification: BatchSpecification
     val externalId: String
     val url: String
     val title: String
@@ -34,7 +32,7 @@ object AuctionScrapperProtocol {
 
   object CreateAuction {
     def apply(auctionType: AuctionType,
-              batchId: String,
+              batchSpecification: BatchSpecification,
               externalId: String,
               url: String,
               title: String,
@@ -51,7 +49,7 @@ object AuctionScrapperProtocol {
       auctionType match {
         case BidType =>
           CreateAuctionBid(
-            batchId,
+            batchSpecification,
             externalId,
             url,
             title,
@@ -66,8 +64,8 @@ object AuctionScrapperProtocol {
             largeImageUrl,
             bids)
         case FixedPriceType =>
-          CreateAuctionFixedPrice(
-            batchId,
+          CreateAuctionFixedAuction(
+            batchSpecification,
             externalId,
             url,
             title,
@@ -84,7 +82,7 @@ object AuctionScrapperProtocol {
       }
   }
 
-  final case class CreateAuctionBid(batchId: String,
+  final case class CreateAuctionBid(batchSpecification: BatchSpecification,
                                     externalId: String,
                                     url: String,
                                     title: String,
@@ -99,20 +97,20 @@ object AuctionScrapperProtocol {
                                     largeImageUrl: String,
                                     bids: List[Bid]) extends CreateAuction
 
-  final case class CreateAuctionFixedPrice(batchId: String,
-                                           externalId: String,
-                                           url: String,
-                                           title: String,
-                                           isSold: Boolean,
-                                           sellerNickname: String,
-                                           sellerLocation: String,
-                                           startPrice: Price,
-                                           finalPrice: Option[Price],
-                                           startDate: LocalDateTime,
-                                           endDate: Option[LocalDateTime],
-                                           thumbnailUrl: String,
-                                           largeImageUrl: String,
-                                           bid: Option[Bid]) extends CreateAuction
+  final case class CreateAuctionFixedAuction(batchSpecification: BatchSpecification,
+                                             externalId: String,
+                                             url: String,
+                                             title: String,
+                                             isSold: Boolean,
+                                             sellerNickname: String,
+                                             sellerLocation: String,
+                                             startPrice: Price,
+                                             finalPrice: Option[Price],
+                                             startDate: LocalDateTime,
+                                             endDate: Option[LocalDateTime],
+                                             thumbnailUrl: String,
+                                             largeImageUrl: String,
+                                             bid: Option[Bid]) extends CreateAuction
 
-  final case class ScrapAuction(url: String) extends PriceScrapperCommand
+  final case class ScrapAuction(url: String) extends AuctionScraperCommand
 }

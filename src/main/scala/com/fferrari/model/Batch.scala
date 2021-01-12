@@ -1,7 +1,10 @@
 package com.fferrari.model
 
+import com.fferrari.actor.AuctionScraperProtocol.CreateAuction
+
 case class BatchAuctionLink(auctionUrl: String, thumbUrl: String)
 
 case class Batch(batchId: String,
-                 websiteInfo: WebsiteConfig,
-                 auctionUrls: List[BatchAuctionLink])
+                 batchSpecification: BatchSpecification,
+                 auctionUrls: List[BatchAuctionLink],
+                 auctions: List[CreateAuction])

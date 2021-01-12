@@ -4,10 +4,9 @@ import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.actor.AuctionScrapperProtocol.CreateAuction
 import com.fferrari.model._
-import com.fferrari.scrapper.DelcampeUtil
-import com.fferrari.scrapper.DelcampeUtil.relativeToAbsoluteUrl
+import com.fferrari.scraper.DelcampeUtil
+import com.fferrari.scraper.DelcampeUtil.relativeToAbsoluteUrl
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -28,9 +27,10 @@ class DelcampeValidator extends AuctionValidator {
   val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
   val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  override def fetchListingPage(websiteInfo: WebsiteConfig,
+  val itemsPerPage: Int = 480
+
+  override def fetchListingPage(batchSpecification: BatchSpecification,
                                 getPage: String => Try[JsoupDocument],
-                                itemsPerPage: Int,
                                 pageNumber: Int = 1)
                                (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
     def checkPageValidity(htmlDoc: JsoupDocument): ValidationResult[JsoupDocument] = {
@@ -44,18 +44,18 @@ class DelcampeValidator extends AuctionValidator {
         htmlDoc.validNec
     }
 
-    getPage(s"${websiteInfo.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber")
+    getPage(s"${batchSpecification.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber")
       .map(checkPageValidity)
       .getOrElse(ListingPageNotFound.invalidNec)
   }
 
-  override def fetchAuctionUrls(websiteConfig: WebsiteConfig)
+  override def fetchAuctionUrls(batchSpecification: BatchSpecification)
                                (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
 
     def fetchLinks(el: Element): ValidationResult[BatchAuctionLink] = {
       val auctionUrl: ValidationResult[String] =
         (el >?> attr("href")("div.item-info a.item-link"))
-          .map(relativeToAbsoluteUrl(websiteConfig.url, _).validNec)
+          .map(relativeToAbsoluteUrl(batchSpecification.url, _).validNec)
           .getOrElse(AuctionLinkNotFound.invalidNec)
 
       val thumbUrl: ValidationResult[String] =
@@ -70,7 +70,7 @@ class DelcampeValidator extends AuctionValidator {
       .map(fetchLinks)
       .sequence
       .map { batchAuctionLink =>
-        websiteConfig.lastScrappedUrl match {
+        batchSpecification.lastUrlScrapped match {
           case Some(lastScrappedUrl) if batchAuctionLink.map(_.auctionUrl).contains(lastScrappedUrl) =>
             // Keep only the auction urls that have not yet been processed (since the last run)
             batchAuctionLink.takeWhile(_.auctionUrl != lastScrappedUrl)
@@ -78,7 +78,7 @@ class DelcampeValidator extends AuctionValidator {
             batchAuctionLink
         }
       }
-      .map(Batch(nextBatchId, websiteConfig, _))
+      .map(Batch(nextBatchId, batchSpecification, _, Nil))
   }
 
   override def nextBatchId: String = {
