@@ -25,6 +25,8 @@ object BatchManagerActor {
   val BatchManagerServiceKey = ServiceKey[Command]("batchManagerService")
 
   def apply(): Behavior[Command] = Behaviors.setup { context =>
+    context.log.info("Starting")
+
     // Register wit the Receptionist
     context.system.receptionist ! Receptionist.Register(BatchManagerServiceKey, context.self)
 

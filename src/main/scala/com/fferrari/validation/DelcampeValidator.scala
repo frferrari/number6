@@ -27,7 +27,7 @@ class DelcampeValidator extends AuctionValidator {
   val FIXED_TYPE_PRICE_CONTAINER = "div#buy-box"
   val BID_TYPE_PRICE_CONTAINER = "div#bid-box"
 
-  val itemsPerPage: Int = 480
+  val itemsPerPage: Int = 24
 
   override def fetchListingPage(batchSpecification: BatchSpecification,
                                 getPage: String => Try[JsoupDocument],
@@ -59,7 +59,7 @@ class DelcampeValidator extends AuctionValidator {
           .getOrElse(AuctionLinkNotFound.invalidNec)
 
       val thumbUrl: ValidationResult[String] =
-        (el >?> attr("src")("img.image-thumb"))
+        (el >?> attr("data-lazy")("img.image-thumb"))
           .map(_.validNec)
           .getOrElse(ThumbnailLinkNotFound.invalidNec)
 

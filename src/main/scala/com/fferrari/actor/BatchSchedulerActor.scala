@@ -40,10 +40,10 @@ object BatchSchedulerActor {
     context.log.info("Starting")
 
     // Start the scrapers actors
-    val scrappers = spawnScrappers(context)
+    val scrapers = spawnScrappers(context)
 
     // Keep an eye on the scrappers
-    context.watch(scrappers.delcampeScraperRouter) // TODO implement handling of messages
+    context.watch(scrapers.delcampeScraperRouter) // TODO implement handling of messages
 
     // Allows to start rolling through batch specifications
     context.self ! ProcessNextBatchSpecification
@@ -52,13 +52,13 @@ object BatchSchedulerActor {
       EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
         persistenceId = PersistenceId.ofUniqueId(actorName),
         emptyState = State(Nil),
-        commandHandler = commandHandler(context, timers),
+        commandHandler = commandHandler(context, timers, scrapers),
         eventHandler = eventHandler
       )
     }
   }
 
-  def commandHandler(context: ActorContext[Command], timers: TimerScheduler[Command])
+  def commandHandler(context: ActorContext[Command], timers: TimerScheduler[Command], scrapers: Scrapers)
                     (state: State, command: Command): ReplyEffect[Event, State] =
     command match {
       case AddBatchSpecification(batchSpecification, replyTo) =>
@@ -77,14 +77,13 @@ object BatchSchedulerActor {
 
         state.batchSpecifications.lift(batchIdx) match {
           case Some(batchSpecification) if batchSpecification.needsUpdate() =>
-            context.log.info(s"Scrapping ${batchSpecification.url}")
-            // TODO send a message to the proper scrapper
             Effect
               .persist(NextBatchSpecificationProcessed(batchSpecification))
-              // .thenRun()
+              .thenRun(extractBachSpecification(scrapers, batchSpecification))
               .thenNoReply()
 
           case _ =>
+            context.log.info(s"No BatchSpecification found, rescheduling for the next batch specification")
             timers.startSingleTimer(ProcessNextBatchSpecification, 60.seconds)
             nextBatchIdx(state)
             Effect.noReply
@@ -108,6 +107,10 @@ object BatchSchedulerActor {
             .thenReply(replyTo)(_ => StatusReply.Ack)
         }
     }
+
+  def extractBachSpecification(scrapers: Scrapers, batchSpecification: BatchSpecification)(newState: State) = {
+    scrapers.delcampeScraperRouter ! AuctionScraperProtocol.ExtractListingPageUrls(batchSpecification)
+  }
 
   def eventHandler(state: State, event: Event): State =
     event match {

@@ -21,6 +21,8 @@ object BatchActor {
 
   def apply(batchId: String): Behavior[Command] =
     Behaviors.setup { context =>
+      context.log.info("Starting")
+
       EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
         persistenceId = PersistenceId.ofUniqueId(s"batch-$batchId"),
         emptyState = EmptyState,

@@ -11,8 +11,8 @@ case class BatchSpecification(id: String,
                               paused: Boolean = false,
                               updatedAt: Long = 0L,
                               lastUrlScrapped: Option[String] = None) {
-  def needsUpdate(relativeTo: java.time.Instant = java.time.Instant.now()): Boolean =
-    (updatedAt + intervalSeconds) > relativeTo.getEpochSecond
+  def needsUpdate(now: java.time.Instant = java.time.Instant.now()): Boolean =
+    ((updatedAt + intervalSeconds) > now.getEpochSecond || updatedAt == 0) && !paused
 }
 
 object BatchSpecification {

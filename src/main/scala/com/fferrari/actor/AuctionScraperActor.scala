@@ -23,6 +23,8 @@ object AuctionScraperActor {
 
   def apply[V <: AuctionValidator](validator: () => V): Behavior[AuctionScraperCommand] =
     Behaviors.setup { context =>
+      context.log.info("Starting")
+
       val listingResponseAdapter: ActorRef[Receptionist.Listing] =
         context.messageAdapter[Receptionist.Listing](ListingResponse)
 
@@ -118,13 +120,10 @@ object AuctionScraperActor {
               }
 
             case _ =>
-              context.log.info("No more urls to process, moving to the next page")
-              implicit val timeout: Timeout = 3.seconds
-              implicit val scheduler: Scheduler = context.system.scheduler
-              batchManagerRef.ask(ref => BatchManagerActor.CreateBatch(batchSpecification, auctions, ref))
+              context.log.info("No more auction urls to process, creating a Batch, then moving to the next listing page")
+              batchManagerRef.ask(ref => BatchManagerActor.CreateBatch(batchSpecification, auctions, ref))(3.seconds, context.system.scheduler)
               timers.startSingleTimer(ExtractListingPageUrls(batchSpecification, pageNumber + 1), randomDurationMs())
               Behaviors.same
-              // processAuctions(websiteConfigs, 0, pageNumber + 1, validator)
           }
 
         case (context, msg) =>

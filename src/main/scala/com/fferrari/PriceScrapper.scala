@@ -36,12 +36,28 @@ object PriceScrapper
       context.spawn(BatchSchedulerActor(), BatchSchedulerActor.actorName)
 
     val routes: Route =
-      path("specification/add") {
+      path("add") {
         post {
           entity(as[BatchSpecification]) { batchSpecification =>
             onComplete {
               implicit val timeout: Timeout = 3.seconds
               batchScheduler.ask(ref => BatchSchedulerActor.AddBatchSpecification(batchSpecification, ref))
+            } { x =>
+              println(s"onComplete ====> $x")
+              complete(StatusCodes.OK)
+            }
+          }
+        }
+      } ~ path("info") {
+        get {
+          complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
+        }
+      } ~ path("pause") {
+        put {
+          entity(as[String]) { batchSpecificationId =>
+            onComplete {
+              implicit val timeout: Timeout = 3.seconds
+              batchScheduler.ask(ref => BatchSchedulerActor.PauseBatchSpecification(batchSpecificationId, ref))
             } { x =>
               println(s"onComplete ====> $x")
               complete(StatusCodes.OK)
@@ -62,11 +78,7 @@ object PriceScrapper
   StdIn.readLine()
   StdIn.readLine()
 
-//  override def main(args: Array[String]): Unit = {
-//    println("===> readline")
-//    StdIn.readLine()
-//    StdIn.readLine()
-//    StdIn.readLine()
-//    ()
-//  }
+//  bindingFuture
+//    .flatMap(_.unbind()) // trigger unbinding from the port
+//    .onComplete(_ => actorSystem.terminate()) // and shutdown when done
 }
