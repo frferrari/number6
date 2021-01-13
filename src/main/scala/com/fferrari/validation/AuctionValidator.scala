@@ -23,12 +23,12 @@ trait AuctionValidator {
   def fetchAuctionUrls(batchSpecification: BatchSpecification)
                       (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
-  def fetchAuction(batchAuctionLink: BatchAuctionLink, batchId: String)
+  def fetchAuction(batchAuctionLink: BatchAuctionLink, batchSpecification: BatchSpecification)
                   (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(batchAuctionLink.auctionUrl)
 
     (validateAuctionType,
-      batchId.validNec,
+      batchSpecification.validNec,
       validateExternalId,
       batchAuctionLink.auctionUrl.validNec,
       validateTitle,

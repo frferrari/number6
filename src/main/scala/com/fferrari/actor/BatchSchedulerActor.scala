@@ -37,6 +37,8 @@ object BatchSchedulerActor {
   var batchIdx = 0
 
   def apply(): Behavior[Command] = Behaviors.setup { context =>
+    context.log.info("Starting")
+
     // Start the scrapers actors
     val scrappers = spawnScrappers(context)
 
@@ -60,15 +62,19 @@ object BatchSchedulerActor {
                     (state: State, command: Command): ReplyEffect[Event, State] =
     command match {
       case AddBatchSpecification(batchSpecification, replyTo) =>
-        if (!state.batchSpecifications.exists(_.name == batchSpecification.name))
+        if (!state.batchSpecifications.exists(_.name == batchSpecification.name)) {
+          context.log.info(s"BatchSpecificationAdded $batchSpecification")
+
           Effect
             .persist(BatchSpecificationAdded(batchSpecification))
             .thenReply(replyTo)(_ => StatusReply.Ack)
-        else
+        } else
           Effect
             .reply(replyTo)(StatusReply.Error(s"BatchSpecification ${batchSpecification.name} already exists"))
 
       case ProcessNextBatchSpecification =>
+        context.log.info("ProcessNextBatchSpecification received")
+
         state.batchSpecifications.lift(batchIdx) match {
           case Some(batchSpecification) if batchSpecification.needsUpdate() =>
             context.log.info(s"Scrapping ${batchSpecification.url}")

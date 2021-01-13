@@ -1,16 +1,15 @@
 package com.fferrari
 
 import akka.actor.typed.scaladsl.AskPattern.{Askable, schedulerFromActorSystem}
-import akka.actor.typed.scaladsl.{Behaviors, Routers}
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
+import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.fferrari.actor.AuctionScraperProtocol.AuctionScraperCommand
-import com.fferrari.actor.{AuctionScraperActor, BatchManagerActor, BatchSchedulerActor}
+import com.fferrari.actor.{BatchManagerActor, BatchSchedulerActor}
 import com.fferrari.model.{BatchSpecification, BatchSpecificationJsonProtocol}
 
 import scala.concurrent.ExecutionContextExecutor
@@ -19,7 +18,8 @@ import scala.io.StdIn
 
 object PriceScrapper
   extends BatchSpecificationJsonProtocol
-    with SprayJsonSupport {
+    with SprayJsonSupport
+    with App {
 
   sealed trait Command
 
@@ -33,7 +33,7 @@ object PriceScrapper
 
     // Start the batch scheduler actor
     val batchScheduler: ActorRef[BatchSchedulerActor.Command] =
-      context.spawn(BatchSchedulerActor(batchManager), BatchSchedulerActor.actorName)
+      context.spawn(BatchSchedulerActor(), BatchSchedulerActor.actorName)
 
     val routes: Route =
       path("specification/add") {
@@ -57,11 +57,16 @@ object PriceScrapper
     Behaviors.empty
   }
 
-  def main(args: Array[String]): Unit = {
-    println("===> readline")
-    StdIn.readLine()
-    StdIn.readLine()
-    StdIn.readLine()
-    ()
-  }
+  println("===> readline")
+  StdIn.readLine()
+  StdIn.readLine()
+  StdIn.readLine()
+
+//  override def main(args: Array[String]): Unit = {
+//    println("===> readline")
+//    StdIn.readLine()
+//    StdIn.readLine()
+//    StdIn.readLine()
+//    ()
+//  }
 }
