@@ -108,16 +108,13 @@ object BatchSchedulerActor {
         }
     }
 
-  def extractBachSpecification(scrapers: Scrapers, batchSpecification: BatchSpecification)(newState: State) = {
-    scrapers.delcampeScraperRouter ! AuctionScraperProtocol.ExtractListingPageUrls(batchSpecification)
-  }
-
   def eventHandler(state: State, event: Event): State =
     event match {
       case BatchSpecificationAdded(batchSpecification) =>
         state.copy(batchSpecifications = state.batchSpecifications :+ batchSpecification)
 
       case NextBatchSpecificationProcessed(batchSpecification) =>
+        nextBatchIdx(state)
         val idx = state.batchSpecifications.indexWhere(_.name == batchSpecification.name)
         if (idx >= 0) {
           val newBatchSpecification = batchSpecification.copy(updatedAt = java.time.Instant.now().getEpochSecond)
@@ -143,6 +140,16 @@ object BatchSchedulerActor {
     }
 
   /**
+   * Tell the appropriate scraper to extract the auctions for the given batch specification
+   * @param scrapers An object containing the different available scrapers
+   * @param batchSpecification A batch specification for which to extract the auctions
+   * @param newState The new state
+   */
+  def extractBachSpecification(scrapers: Scrapers, batchSpecification: BatchSpecification)(newState: State): Unit = {
+    scrapers.delcampeScraperRouter ! AuctionScraperProtocol.ExtractListingPageUrls(batchSpecification)
+  }
+
+  /**
    * Moves to the next batch specification to process
    * @param state The state containing the batch specifications
    */
@@ -153,8 +160,7 @@ object BatchSchedulerActor {
       batchIdx = 0
 
   /**
-   * Allows to spawn actors that will handle scrapping auctions from the different web sites that will be our sources
-   * of prices.
+   * Allows to spawn actors that will scrap auctions from the different web sites that will be our sources of prices.
    * We use routers to create actors so that we have a pool of actors for each provider (web sites)
    * @param context An actor context to allow to spawn actors
    * @return A class containing the actor ref of the different routers for the different providers
