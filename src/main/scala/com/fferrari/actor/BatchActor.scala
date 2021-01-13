@@ -2,7 +2,6 @@ package com.fferrari.actor
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
-import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
 import com.fferrari.actor.AuctionScraperProtocol.{CreateAuction, CreateAuctionBid, CreateAuctionFixedAuction}

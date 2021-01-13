@@ -11,13 +11,13 @@ import com.fferrari.actor.AuctionScraperProtocol.CreateAuction
 import com.fferrari.model.BatchSpecification
 
 object BatchManagerActor {
-  val actorName = "batchManager"
+  val actorName = "batch-manager"
 
   sealed trait Command
-  final case class CreateBatch(batchSpecification: BatchSpecification, auctions: List[CreateAuction], replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class CreateBatch(batchSpecification: BatchSpecification, batchId: String, auctions: List[CreateAuction], replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   sealed trait Event
-  final case class BatchCreated(batchSpecification: BatchSpecification, auctions: List[CreateAuction]) extends Event
+  final case class BatchCreated(batchSpecification: BatchSpecification, batchId: String, auctions: List[CreateAuction]) extends Event
 
   sealed trait State
   final case object EmptyState extends State
@@ -41,17 +41,17 @@ object BatchManagerActor {
 
   def commandHandler(context: ActorContext[Command])(state: State, command: Command): ReplyEffect[Event, State] = {
     command match {
-      case CreateBatch(batchSpecification, auctions, replyTo) =>
+      case CreateBatch(batchSpecification, batchId, auctions, replyTo) =>
         Effect
-          .persist(BatchCreated(batchSpecification, auctions))
+          .persist(BatchCreated(batchSpecification, batchId, auctions))
           .thenReply(replyTo)(_ => StatusReply.Ack)
     }
   }
 
   def eventHandler(context: ActorContext[Command])(state: State, event: Event): State = {
     event match {
-      case BatchCreated(batchSpecification, auctions) =>
-        val batchActor = context.spawn(BatchActor(batchSpecification.id), s"batch-${batchSpecification.id}")
+      case BatchCreated(batchSpecification, batchId, auctions) =>
+        val batchActor = context.spawn(BatchActor(batchId), s"batch-${batchId}")
         batchActor ! BatchActor.CreateBatch(batchSpecification, auctions)
         EmptyState
     }

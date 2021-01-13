@@ -73,11 +73,12 @@ object AuctionScraperActor {
             case Valid(jsoupDocument) =>
               validator.fetchAuctionUrls(batchSpecification)(jsoupDocument) match {
                 case Valid(batch@Batch(_, _, auctionUrls, _)) if auctionUrls.nonEmpty =>
+                  context.log.info(s"Auction urls fetched, batchId $batch")
                   timers.startSingleTimer(ExtractAuctions(batchSpecification, batch, pageNumber), randomDurationMs())
                   Behaviors.same
 
                 case Valid(Batch(_, _, auctionUrls, _)) if auctionUrls.isEmpty =>
-                  context.log.info(s"No URLs fetched from the listing page, moving to the next website")
+                  context.log.info(s"No URLs fetched from the listing page")
                   Behaviors.same
 
                 case Invalid(i) =>
@@ -122,7 +123,7 @@ object AuctionScraperActor {
 
             case _ =>
               context.log.info("No more auction urls to process, creating a Batch, then moving to the next listing page")
-              batchManagerRef.ask(ref => BatchManagerActor.CreateBatch(batchSpecification, auctions, ref))(3.seconds, context.system.scheduler)
+              batchManagerRef.ask(ref => BatchManagerActor.CreateBatch(batchSpecification, batchId, auctions, ref))(3.seconds, context.system.scheduler)
               timers.startSingleTimer(ExtractListingPageUrls(batchSpecification, pageNumber + 1), randomDurationMs())
               Behaviors.same
           }
