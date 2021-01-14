@@ -14,7 +14,7 @@ import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementLis
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DelcampeValidatorBidSoldCreateAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
+class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
 
   val delcampeValidator: DelcampeValidator = new DelcampeValidator
 

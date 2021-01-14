@@ -84,7 +84,7 @@ object BatchSchedulerActor {
 
           case _ =>
             context.log.info(s"No BatchSpecification found, rescheduling for the next batch specification")
-            timers.startSingleTimer(ProcessNextBatchSpecification, 60.seconds)
+            timers.startSingleTimer(ProcessNextBatchSpecification, 30.seconds)
             nextBatchIdx(state)
             Effect.noReply
         }

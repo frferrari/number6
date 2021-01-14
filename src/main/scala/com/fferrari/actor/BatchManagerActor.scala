@@ -2,22 +2,21 @@ package com.fferrari.actor
 
 import akka.Done
 import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
-import com.fferrari.actor.AuctionScraperProtocol.CreateAuction
-import com.fferrari.model.BatchSpecification
+import com.fferrari.model.{Auction, BatchSpecification}
 
 object BatchManagerActor {
   val actorName = "batch-manager"
 
   sealed trait Command
-  final case class CreateBatch(batchSpecification: BatchSpecification, batchId: String, auctions: List[CreateAuction], replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class CreateBatch(batchSpecification: BatchSpecification, batchId: String, auctions: List[Auction], replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   sealed trait Event
-  final case class BatchCreated(batchSpecification: BatchSpecification, batchId: String, auctions: List[CreateAuction]) extends Event
+  final case class BatchCreated(batchSpecification: BatchSpecification, batchId: String, auctions: List[Auction]) extends Event
 
   sealed trait State
   final case object EmptyState extends State

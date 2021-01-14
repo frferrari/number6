@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
+import com.fferrari.model.Auction.AuctionType
 import com.fferrari.model._
 import com.fferrari.scraper.DelcampeUtil
 import com.fferrari.scraper.DelcampeUtil.relativeToAbsoluteUrl
@@ -133,8 +134,8 @@ class DelcampeValidator extends AuctionValidator {
       classes.split(" ").contains("fa-shopping-cart")
 
     def auctionTypeFromClasses(classes: String): ValidationResult[AuctionType] =
-      if (isBidType(classes)) BidType.validNec
-      else if (isFixedType(classes)) FixedPriceType.validNec
+      if (isBidType(classes)) Auction.BID_TYPE_AUCTION.validNec
+      else if (isFixedType(classes)) Auction.FIXED_PRICE_TYPE_AUCTION.validNec
       else AuctionTypeNotFound.invalidNec
 
     (htmlDoc >?> attr("class")("div.price-info div i"))

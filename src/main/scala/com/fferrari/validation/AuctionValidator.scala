@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
 import cats.implicits.{catsSyntaxTuple15Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.actor.AuctionScraperProtocol.CreateAuction
+import com.fferrari.model.Auction.AuctionType
 import com.fferrari.model._
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
@@ -24,7 +24,7 @@ trait AuctionValidator {
                       (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
   def fetchAuction(batchAuctionLink: BatchAuctionLink, batchSpecification: BatchSpecification)
-                  (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], CreateAuction] = {
+                  (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], Auction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(batchAuctionLink.auctionUrl)
 
     (validateAuctionType,
@@ -38,7 +38,7 @@ trait AuctionValidator {
       validateStartDate, validateEndDate,
       batchAuctionLink.thumbUrl.validNec,
       validateLargeImageUrl,
-      validateBids).mapN(CreateAuction.apply)
+      validateBids).mapN(Auction.apply)
   }
 
   def nextBatchId: String

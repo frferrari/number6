@@ -134,44 +134,5 @@ object AuctionScraperActor {
       }
     }
 
-  //  private def processAuctions[V <: AuctionValidator](validator: V): Behavior[AuctionScraperCommand] =
-  //    Behaviors.withTimers[AuctionScraperCommand] { implicit timers =>
-  //      Behaviors.receivePartial {
-  //        case (context, ExtractAuctions(batchSpecification, batch@Batch(batchId, _, batchAuctionLinks))) =>
-  //          batchAuctionLinks match {
-  //            case batchAuctionLink :: remainingAuctionUrls =>
-  //              context.log.info(s"Scraping auction URL: ${batchAuctionLink.auctionUrl}")
-  //
-  //              validator.fetchAuction(batchAuctionLink, batchId) match {
-  //                case Valid(auction) =>
-  //                  context.log.info(s"Auction fetched successfully ${auction.url}")
-  //                  timers.startSingleTimer(ExtractAuctions(batch.copy(auctionUrls = remainingAuctionUrls)), randomDurationMs())
-  //
-  //                  batchSpecification.lastUrlScrapped match {
-  //                    case Some(_) =>
-  //                      Behaviors.same
-  //                    case None =>
-  //                      val updatedWebsiteInfo = batchSpecification.copy(lastUrlScrapped = Some(batchAuctionLink.auctionUrl))
-  //                      processAuctions(websiteConfigs.updated(websiteConfigsIdx, updatedWebsiteInfo), websiteConfigsIdx, pageNumber, validator)
-  //                  }
-  //                case Invalid(e) =>
-  //                  context.log.error(s"Error while fetching auction $batchAuctionLink, moving to the next website ($e)")
-  //                  moveToNextWebsite(websiteConfigs, websiteConfigsIdx)
-  //              }
-  //
-  //            case _ =>
-  //              context.log.info("No more urls to process, moving to the next page")
-  //              timers.startSingleTimer(ExtractListingPageUrls, randomDurationMs())
-  //              processAuctions(websiteConfigs, 0, pageNumber + 1, validator)
-  //          }
-  //      }
-  //    }
-
-  //  def moveToNextWebsite(websiteInfos: List[WebsiteConfig], websiteInfosIdx: Int)
-  //                       (implicit timers: TimerScheduler[AuctionScraperCommand]): Behavior[AuctionScraperCommand] = {
-  //    timers.startSingleTimer(ExtractUrls, randomDurationMs())
-  //    processWebsites(websiteInfos, websiteInfosIdx + 1)
-  //  }
-
   def getPage(url: String): Try[JsoupBrowser.JsoupDocument] = Try(jsoupBrowser.get(url))
 }
