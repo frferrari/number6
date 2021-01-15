@@ -4,13 +4,11 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Bid, BidType, Price}
+import com.fferrari.model.{Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
-import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.model.Element
-import net.ruippeixotog.scalascraper.scraper.ContentExtractors.{attr, elementList, text}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

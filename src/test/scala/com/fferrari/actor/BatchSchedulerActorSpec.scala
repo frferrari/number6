@@ -31,7 +31,7 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
     eventSourcedTestKit.clear()
   }
 
-  "BatchScheduler" must {
+  "BatchScheduler" ignore {
     "SUCCEED Adding a specification" in {
       val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification1, _))
       result.reply shouldBe StatusReply.Ack

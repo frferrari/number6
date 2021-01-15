@@ -81,7 +81,7 @@ object AuctionScraperActor {
                   context.log.info(s"No URLs fetched from the listing page")
                   Behaviors.same
 
-                case Invalid(i) =>
+                case i =>
                   context.log.error(s"Error while fetching the auction urls ($i)")
                   // TODO Fix me??
                   Behaviors.same

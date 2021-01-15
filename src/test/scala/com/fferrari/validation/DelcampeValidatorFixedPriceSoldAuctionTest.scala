@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Bid, BidType, FixedPriceType, Price}
+import com.fferrari.model.{Auction, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -33,7 +33,7 @@ class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matche
   }
 
   it should "extract the auction TYPE from a SOLD auction of FIXED PRICE type" in {
-    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(FixedPriceType)
+    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.FIXED_PRICE_TYPE_AUCTION)
   }
 
   it should "extract the auction SOLD FLAG from a SOLD auction of FIXED PRICE type" in {
