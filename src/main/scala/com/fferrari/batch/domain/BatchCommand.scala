@@ -25,11 +25,21 @@ case class MatchAuction(entityID: Batch.ID, auctionID: Auction.ID, matchID: UUID
   override def uninitializedReply: MatchReply = BatchNotFound
 }
 
+case class UnmatchAuction(entityID: Batch.ID, auctionID: Auction.ID) extends BatchCommand[MatchReply] {
+  override def initializedReply: Batch => MatchReply =
+    _.auctions
+      .find(_.id == auctionID)
+      .map(_ => UnmatchAccepted).getOrElse(AuctionNotFound(auctionID))
+
+  override def uninitializedReply: MatchReply = BatchNotFound
+}
+
 sealed trait BatchReply
 case class BatchAccepted(batchId: Batch.ID) extends BatchReply
 case class BatchAlreadyExists(batchId: Batch.ID) extends BatchReply
 
 sealed trait MatchReply
 case object MatchAccepted extends MatchReply
-case class AuctionNotFound(auctionId: Auction.ID) extends MatchReply
+case object UnmatchAccepted extends MatchReply
+case class AuctionNotFound(auctionID: Auction.ID) extends MatchReply
 case object BatchNotFound extends MatchReply

@@ -1,6 +1,7 @@
 package com.fferrari.batch.domain
 
 import java.time.Instant
+import java.util.UUID
 
 import com.fferrari.auction.domain.Auction
 import com.fferrari.batchspecification.domain.BatchSpecification
@@ -13,3 +14,9 @@ case class BatchCreated(entityID: Batch.ID,
                         batchSpecificationId: BatchSpecification.ID,
                         auctions: List[Auction]
                        ) extends BatchEvent
+
+case class AuctionMatched(entityID: Batch.ID,
+                          timestamp: Instant,
+                          auctionID: Auction.ID,
+                          matchID: UUID) extends BatchEvent
+
