@@ -4,7 +4,8 @@ import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.pattern.StatusReply
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
-import com.fferrari.model.BatchSpecification
+import com.fferrari.batchscheduler.application.BatchSchedulerActor
+import com.fferrari.batchscheduler.domain.BatchSpecification
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -22,7 +23,7 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
   with BatchSchedulerSpecFixture {
 
   private val eventSourcedTestKit =
-    EventSourcedBehaviorTestKit[BatchSchedulerActor.Command, BatchSchedulerActor.Event, BatchSchedulerActor.State](
+    EventSourcedBehaviorTestKit[BatchSchedulerActor.BatchSpecificationCommand, BatchSchedulerActor.BatchSpecificationEvent, BatchSchedulerActor.State](
       system,
       BatchSchedulerActor())
 

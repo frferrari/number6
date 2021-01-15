@@ -1,16 +1,18 @@
-package com.fferrari.actor
+package com.fferrari.auction.application
 
 import akka.actor.typed.receptionist.Receptionist
-import akka.actor.typed.scaladsl.AskPattern._
+import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior, Scheduler}
-import akka.util.Timeout
+import akka.actor.typed.{ActorRef, Behavior}
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.actor.AuctionScraperProtocol._
-import com.fferrari.model.{Batch, BatchSpecification}
-import com.fferrari.scraper.DelcampeUtil.randomDurationMs
-import com.fferrari.validation.{AuctionValidator, LastListingPageReached}
+import com.fferrari.auction.application.DelcampeUtil.randomDurationMs
+import com.fferrari.auction.domain.es.AuctionScraperProtocol._
+import com.fferrari.auction.validator.{AuctionValidator, LastListingPageReached}
+import com.fferrari.batch.domain.Batch
+import com.fferrari.batchmanager.application.BatchManagerActor
+import com.fferrari.batchmanager.domain.es.BatchManagerCommand
+import com.fferrari.batchscheduler.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
 import scala.concurrent.duration._
@@ -63,7 +65,7 @@ object AuctionScraperActor {
   }
 
   private def processListingPage[V <: AuctionValidator](validator: V,
-                                                        batchManagerRef: ActorRef[BatchManagerActor.Command]): Behavior[AuctionScraperCommand] =
+                                                        batchManagerRef: ActorRef[BatchManagerCommand]): Behavior[AuctionScraperCommand] =
     Behaviors.withTimers[AuctionScraperCommand] { implicit timers =>
       Behaviors.receivePartial {
         case (context, ExtractListingPageUrls(batchSpecification, pageNumber)) =>
@@ -71,13 +73,13 @@ object AuctionScraperActor {
 
           validator.fetchListingPage(batchSpecification, getPage, pageNumber) match {
             case Valid(jsoupDocument) =>
-              validator.fetchAuctionUrls(batchSpecification)(jsoupDocument) match {
-                case Valid(batch@Batch(_, _, auctionUrls, _)) if auctionUrls.nonEmpty =>
+              validator.fetchAuctionUrls(batchSpecification, pageNumber)(jsoupDocument) match {
+                case Valid(batch@Batch(_, _, _, auctionUrls, _, _)) if auctionUrls.nonEmpty =>
                   context.log.info(s"Auction urls fetched, batchId $batch")
                   timers.startSingleTimer(ExtractAuctions(batchSpecification, batch, pageNumber), randomDurationMs())
                   Behaviors.same
 
-                case Valid(Batch(_, _, auctionUrls, _)) if auctionUrls.isEmpty =>
+                case Valid(Batch(_, _, _, auctionUrls, _, _)) if auctionUrls.isEmpty =>
                   context.log.info(s"No URLs fetched from the listing page")
                   Behaviors.same
 
@@ -96,7 +98,7 @@ object AuctionScraperActor {
               Behaviors.same
           }
 
-        case (context, ExtractAuctions(batchSpecification, batch@Batch(batchId, _, batchAuctionLinks, auctions), pageNumber)) =>
+        case (context, ExtractAuctions(batchSpecification, batch@Batch(batchId, _, _, batchAuctionLinks, auctions, firstUrlScraped), pageNumber)) =>
           batchAuctionLinks match {
             case batchAuctionLink :: remainingAuctionUrls =>
               context.log.info(s"Scraping auction URL: ${batchAuctionLink.auctionUrl}")
@@ -105,11 +107,11 @@ object AuctionScraperActor {
                 case Valid(auction) =>
                   context.log.info(s"Auction fetched successfully ${auction.url}")
                   val newBatchSpecification: BatchSpecification = {
-                    batchSpecification.lastUrlScrapped match {
+                    batchSpecification.lastUrlScraped match {
                       case Some(_) =>
                         batchSpecification
                       case None =>
-                        batchSpecification.copy(lastUrlScrapped = Some(batchAuctionLink.auctionUrl))
+                        batchSpecification.copy(lastUrlScraped = Some(batchAuctionLink.auctionUrl))
                     }
                   }
                   val newBatch = batch.copy(auctionUrls = remainingAuctionUrls, auctions = batch.auctions :+ auction)
@@ -123,7 +125,7 @@ object AuctionScraperActor {
 
             case _ =>
               context.log.info("No more auction urls to process, creating a Batch, then moving to the next listing page")
-              batchManagerRef.ask(ref => BatchManagerActor.CreateBatch(batchSpecification, batchId, auctions, ref))(3.seconds, context.system.scheduler)
+              batchManagerRef.ask(ref => BatchManagerCommand.CreateBatch(batch.batchId, batchSpecification.id, firstUrlScraped, auctions, ref))(3.seconds, context.system.scheduler)
               timers.startSingleTimer(ExtractListingPageUrls(batchSpecification, pageNumber + 1), randomDurationMs())
               Behaviors.same
           }

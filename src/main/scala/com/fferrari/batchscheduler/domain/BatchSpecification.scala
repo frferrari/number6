@@ -1,16 +1,25 @@
-package com.fferrari.model
+package com.fferrari.batchscheduler.domain
 
+import com.fferrari.batchscheduler.domain.es.BatchSchedulerEvent
+import com.fferrari.batchscheduler.domain.es.BatchSchedulerEvent.{BatchSchedulerAdded, LastUrlUpdated}
 import spray.json._
 
-case class BatchSpecification(id: String,
-                              name: String,
-                              description: String,
-                              provider: String,
-                              url: String,
-                              intervalSeconds: Long,
-                              paused: Boolean = false,
-                              updatedAt: Long = 0L,
-                              lastUrlScrapped: Option[String] = None) {
+import scala.util.{Success, Try}
+
+final case class BatchSpecification private[domain](id: String,
+                                                    name: String,
+                                                    description: String,
+                                                    provider: String,
+                                                    url: String,
+                                                    intervalSeconds: Long,
+                                                    paused: Boolean = false,
+                                                    updatedAt: Long = 0L,
+                                                    lastUrlScraped: Option[String] = None) {
+  def applyEvent(batchSpecificationEvent: BatchSchedulerEvent): Try[BatchSpecification] =
+    batchSpecificationEvent match {
+      case event: LastUrlUpdated =>
+        Success(copy(id = ))
+  }
   def needsUpdate(now: java.time.Instant = java.time.Instant.now()): Boolean =
     ((updatedAt + intervalSeconds) > now.getEpochSecond || updatedAt == 0) && !paused
 }
@@ -30,13 +39,13 @@ object BatchSpecification {
       intervalSeconds,
       paused = false,
       updatedAt = 0L,
-      lastUrlScrapped = None)
+      lastUrlScraped = None)
 }
 
 trait BatchSpecificationJsonProtocol extends DefaultJsonProtocol {
   implicit object BatchSpecificationJsonFormat extends RootJsonFormat[BatchSpecification] {
     def write(bs: BatchSpecification): JsArray = {
-      bs.lastUrlScrapped match {
+      bs.lastUrlScraped match {
         case Some(lastUrlScrapped) =>
           JsArray(
             JsString(bs.id),

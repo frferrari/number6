@@ -1,4 +1,4 @@
-package com.fferrari.model
+package com.fferrari.auction.domain
 
 import java.time.LocalDateTime
 

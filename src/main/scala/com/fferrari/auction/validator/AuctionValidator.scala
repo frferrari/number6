@@ -1,11 +1,14 @@
-package com.fferrari.validation
+package com.fferrari.auction.validator
 
 import java.time.LocalDateTime
 
 import cats.data.{NonEmptyChain, Validated}
 import cats.implicits.{catsSyntaxTuple15Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.model.Auction.AuctionType
-import com.fferrari.model._
+import com.fferrari.auction.domain.Auction.AuctionType
+import com.fferrari.auction.domain.{Auction, Bid, Price}
+import com.fferrari.auction.validator.validation.ValidationResult
+import com.fferrari.batch.domain.{Batch, BatchAuctionLink}
+import com.fferrari.batchscheduler.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -20,7 +23,7 @@ trait AuctionValidator {
                        pageNumber: Int = 1)
                       (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
-  def fetchAuctionUrls(batchSpecification: BatchSpecification)
+  def fetchAuctionUrls(batchSpecification: BatchSpecification, pageNumber: Int)
                       (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
 
   def fetchAuction(batchAuctionLink: BatchAuctionLink, batchSpecification: BatchSpecification)

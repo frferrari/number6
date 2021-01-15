@@ -1,13 +1,13 @@
-package com.fferrari.scraper
+package com.fferrari.auction.application
 
 import java.time.LocalDateTime
 
 import cats.data.ValidatedNec
-import cats.implicits._
-import com.fferrari.model.Price
-import com.fferrari.validation._
+import cats.implicits.catsSyntaxValidatedIdBinCompat0
+import com.fferrari.auction.domain.Price
+import com.fferrari.auction.validator._
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration._
 import scala.util.matching.Regex
 import scala.util.{Failure, Random, Success, Try}
 

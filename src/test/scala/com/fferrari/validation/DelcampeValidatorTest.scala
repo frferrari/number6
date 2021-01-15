@@ -2,7 +2,9 @@ package com.fferrari.validation
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Batch, BatchAuctionLink, BidType, Delcampe, WebsiteConfig}
+import com.fferrari.auction.validator.{AuctionLinkNotFound, AuctionTypeNotFound, DelcampeValidator, LastListingPageReached, MaximumNumberOfAllowedPagesReached, ThumbnailLinkNotFound}
+import com.fferrari.batch.domain.BatchAuctionLink
+import com.fferrari.model.{BidType, Delcampe, WebsiteConfig}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import org.scalatest.flatspec.AnyFlatSpec

@@ -1,27 +1,28 @@
-package com.fferrari.actor
+package com.fferrari.batch.application
 
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors}
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
-import com.fferrari.model.{Auction, BatchSpecification}
+import com.fferrari.auction.domain.Auction
+import com.fferrari.batchscheduler.domain.BatchSpecification
 
 object BatchActor {
-  sealed trait Command
-  final case class CreateBatch(batchSpecification: BatchSpecification, auctions: List[Auction]) extends Command
+  sealed trait BatchCommand
+  final case class CreateBatch(batchSpecification: BatchSpecification, auctions: List[Auction]) extends BatchCommand
 
-  sealed trait Event
-  final case class BatchCreated(batchSpecification: BatchSpecification, auctions: List[Auction]) extends Event
+  sealed trait BatchEvent
+  final case class BatchCreated(batchSpecification: BatchSpecification, auctions: List[Auction]) extends BatchEvent
 
   sealed trait State
   final case object EmptyState extends State
   final case class ActiveState(batchSpecification: BatchSpecification, auctions: List[Auction]) extends State
 
-  def apply(batchId: String): Behavior[Command] =
+  def apply(batchId: String): Behavior[BatchCommand] =
     Behaviors.setup { context =>
       context.log.info("Starting")
 
-      EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+      EventSourcedBehavior.withEnforcedReplies[BatchCommand, BatchEvent, State](
         persistenceId = PersistenceId.ofUniqueId(s"batch-$batchId"),
         emptyState = EmptyState,
         commandHandler = commandHandler(context),
@@ -29,7 +30,7 @@ object BatchActor {
       )
     }
 
-  def commandHandler(context: ActorContext[Command])(state: State, command: Command): ReplyEffect[Event, State] = {
+  def commandHandler(context: ActorContext[BatchCommand])(state: State, command: BatchCommand): ReplyEffect[BatchEvent, State] = {
     command match {
       case CreateBatch(batchSpecification, auctions) =>
         Effect
@@ -38,7 +39,7 @@ object BatchActor {
     }
   }
 
-  def eventHandler(state: State, event: Event): State = {
+  def eventHandler(state: State, event: BatchEvent): State = {
     event match {
       case BatchCreated(batchSpecification, auctions) =>
         ActiveState(batchSpecification, auctions)

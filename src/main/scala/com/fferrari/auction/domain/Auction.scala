@@ -1,8 +1,9 @@
-package com.fferrari.model
+package com.fferrari.auction.domain
 
 import java.time.LocalDateTime
 
-import com.fferrari.model.Auction.AuctionType
+import com.fferrari.auction.domain.Auction.AuctionType
+import com.fferrari.batchscheduler.domain.BatchSpecification
 
 final case class Auction(auctionType: AuctionType,
                          batchSpecification: BatchSpecification,

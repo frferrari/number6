@@ -1,13 +1,16 @@
-package com.fferrari.validation
+package com.fferrari.auction.validator
 
 import java.time.LocalDateTime
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.model.Auction.AuctionType
-import com.fferrari.model._
-import com.fferrari.scraper.DelcampeUtil
-import com.fferrari.scraper.DelcampeUtil.relativeToAbsoluteUrl
+import com.fferrari.auction.application.DelcampeUtil
+import com.fferrari.auction.application.DelcampeUtil.relativeToAbsoluteUrl
+import com.fferrari.auction.domain.Auction.AuctionType
+import com.fferrari.auction.domain.{Auction, Bid, Price}
+import com.fferrari.auction.validator.validation.ValidationResult
+import com.fferrari.batch.domain.{Batch, BatchAuctionLink}
+import com.fferrari.batchscheduler.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -50,7 +53,7 @@ class DelcampeValidator extends AuctionValidator {
       .getOrElse(ListingPageNotFound.invalidNec)
   }
 
-  override def fetchAuctionUrls(batchSpecification: BatchSpecification)
+  override def fetchAuctionUrls(batchSpecification: BatchSpecification, pageNumber: Int)
                                (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
 
     def fetchLinks(el: Element): ValidationResult[BatchAuctionLink] = {
@@ -71,7 +74,7 @@ class DelcampeValidator extends AuctionValidator {
       .map(fetchLinks)
       .sequence
       .map { batchAuctionLink =>
-        batchSpecification.lastUrlScrapped match {
+        batchSpecification.lastUrlScraped match {
           case Some(lastScrappedUrl) if batchAuctionLink.map(_.auctionUrl).contains(lastScrappedUrl) =>
             // Keep only the auction urls that have not yet been processed (since the last run)
             batchAuctionLink.takeWhile(_.auctionUrl != lastScrappedUrl)
@@ -79,7 +82,7 @@ class DelcampeValidator extends AuctionValidator {
             batchAuctionLink
         }
       }
-      .map(Batch(nextBatchId, batchSpecification, _, Nil))
+      .map(links => Batch(nextBatchId, batchSpecification, pageNumber, links, Nil, links.head.auctionUrl))
   }
 
   override def nextBatchId: String = {

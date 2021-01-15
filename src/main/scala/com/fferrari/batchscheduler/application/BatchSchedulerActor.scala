@@ -1,55 +1,50 @@
-package com.fferrari.actor
+package com.fferrari.batchscheduler.application
 
 import akka.Done
+import akka.actor.typed.receptionist.{Receptionist, ServiceKey}
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, Routers, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior, SupervisorStrategy}
 import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
-import com.fferrari.actor.AuctionScraperProtocol.AuctionScraperCommand
-import com.fferrari.model.BatchSpecification
-import com.fferrari.validation.DelcampeValidator
+import com.fferrari.auction.application.AuctionScraperActor
+import com.fferrari.auction.domain.es.AuctionScraperProtocol
+import com.fferrari.auction.domain.es.AuctionScraperProtocol.AuctionScraperCommand
+import com.fferrari.auction.validator.DelcampeValidator
+import com.fferrari.batchscheduler.domain.BatchSpecification
+import com.fferrari.batchscheduler.domain.es.{BatchSchedulerCommand, BatchSchedulerEvent}
+import com.fferrari.batchscheduler.domain.es.BatchSchedulerCommand.{AddBatchScheduler, ProcessBatchScheduler$}
+import com.fferrari.batchscheduler.domain.es.BatchSchedulerEvent.BatchSchedulerAdded
 
 import scala.concurrent.duration._
 
 object BatchSchedulerActor {
 
-  val actorName = "batch-scheduler"
-
-  sealed trait Command
-  case class AddBatchSpecification(batchSpecification: BatchSpecification, replyTo: ActorRef[StatusReply[Done]]) extends Command
-  case object ProcessNextBatchSpecification extends Command
-  case class UpdateLastUrl(batchSpecificationId: String, lastUrl: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
-  case class PauseBatchSpecification(batchSpecificationId: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
-  // case class PauseProvider(provider: String) extends Command
-
-  sealed trait Event
-  final case class BatchSpecificationAdded(batchSpecification: BatchSpecification) extends Event
-  final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification) extends Event
-  final case class LastUrlUpdated(batchSpecificationId: String, lastUrl: String) extends Event
-  final case class BatchSpecificationPaused(batchSpecificationId: String) extends Event
+  val actorName = "batch-specification"
 
   final case class State(batchSpecifications: List[BatchSpecification])
+
+  val BatchSpecificationServiceKey = ServiceKey[BatchSchedulerCommand]("batchSpecificationService")
 
   case class Scrapers(delcampeScraperRouter: ActorRef[AuctionScraperCommand])
 
   // TODO: how to remove this var?
   var batchIdx = 0
 
-  def apply(): Behavior[Command] = Behaviors.setup { context =>
+  def apply(): Behavior[BatchSchedulerCommand] = Behaviors.setup { context =>
     context.log.info("Starting")
+
+    // Register with the Receptionist
+    context.system.receptionist ! Receptionist.Register(BatchSpecificationServiceKey, context.self)
 
     // Start the scrapers actors
     val scrapers = spawnScrappers(context)
 
-    // Keep an eye on the scrappers
-    context.watch(scrapers.delcampeScraperRouter) // TODO implement handling of messages
-
     // Allows to start rolling through batch specifications
-    context.self ! ProcessNextBatchSpecification
+    context.self ! ProcessBatchScheduler$
 
-    Behaviors.withTimers[Command] { timers =>
-      EventSourcedBehavior.withEnforcedReplies[Command, Event, State](
+    Behaviors.withTimers[BatchSchedulerCommand] { timers =>
+      EventSourcedBehavior.withEnforcedReplies[BatchSchedulerCommand, BatchSchedulerEvent, State](
         persistenceId = PersistenceId.ofUniqueId(actorName),
         emptyState = State(Nil),
         commandHandler = commandHandler(context, timers, scrapers),
@@ -58,59 +53,66 @@ object BatchSchedulerActor {
     }
   }
 
-  def commandHandler(context: ActorContext[Command], timers: TimerScheduler[Command], scrapers: Scrapers)
-                    (state: State, command: Command): ReplyEffect[Event, State] =
+  def commandHandler(context: ActorContext[BatchSchedulerCommand], timers: TimerScheduler[BatchSchedulerCommand], scrapers: Scrapers)
+                    (state: State, command: BatchSchedulerCommand): ReplyEffect[BatchSchedulerEvent, State] =
     command match {
-      case AddBatchSpecification(batchSpecification, replyTo) =>
-        if (!state.batchSpecifications.exists(_.name == batchSpecification.name)) {
-          context.log.info(s"BatchSpecificationAdded $batchSpecification")
+      case cmd: AddBatchScheduler =>
+        if (!state.batchSpecifications.exists(_.name == cmd.name)) {
+          context.log.info(s"BatchSpecificationAdded $cmd")
 
           Effect
-            .persist(BatchSpecificationAdded(batchSpecification))
-            .thenReply(replyTo)(_ => StatusReply.Ack)
-        } else
+            .persist(cmd.toBatchSpecificationAdded)
+            .thenNoReply()
+        }
+        /*
+        else
           Effect
             .reply(replyTo)(StatusReply.Error(s"BatchSpecification ${batchSpecification.name} already exists"))
+         */
 
-      case ProcessNextBatchSpecification =>
-        context.log.info("ProcessNextBatchSpecification received")
+      case cmd@ProcessBatchScheduler$ =>
+        context.log.info("ProcessBatchSpecification received")
 
         state.batchSpecifications.lift(batchIdx) match {
-          case Some(batchSpecification) if batchSpecification.needsUpdate() =>
+          case Some(batchSpecification@BatchSpecification(id, name, description, provider, url, intervalSeconds, paused, updatedAt, lastUrlScraped)) if batchSpecification.needsUpdate() =>
             Effect
-              .persist(NextBatchSpecificationProcessed(batchSpecification))
+              .persist(cmd.toBatchSpecificationProcessed(id, name, description, provider, url, intervalSeconds))
               .thenRun(extractBachSpecification(scrapers, batchSpecification))
               .thenNoReply()
 
           case _ =>
             context.log.info(s"No BatchSpecification found, rescheduling for the next batch specification")
-            timers.startSingleTimer(ProcessNextBatchSpecification, 30.seconds)
+            timers.startSingleTimer(ProcessBatchScheduler$, 30.seconds)
             nextBatchIdx(state)
             Effect.noReply
         }
 
-      case UpdateLastUrl(batchSpecificationId, lastUrl, replyTo) =>
+        /*
+      case UpdateLastUrl(batchSpecificationId, lastUrlScraped) =>
+        context.log.info("UpdateLastUrl received")
         state.batchSpecifications
           .find(_.id == batchSpecificationId)
-          .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationId}, can't update the lastUrl"))) { _ =>
+          .fold[ReplyEffect[BatchSpecificationEvent, State]](Effect.noReply) { _ =>
+            context.log.info(s"Updating the last url of batchId $batchSpecificationId to $lastUrlScraped")
             Effect
-              .persist(LastUrlUpdated(batchSpecificationId, lastUrl))
-              .thenReply(replyTo)(_ => StatusReply.Ack)
+              .persist(LastUrlUpdated(batchSpecificationId, lastUrlScraped))
+              .thenNoReply()
           }
 
       case PauseBatchSpecification(batchSpecificationId, replyTo) =>
         state.batchSpecifications
-        .find(_.id == batchSpecificationId)
-        .fold[ReplyEffect[Event, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationId}, can't pause it"))) { _ =>
-          Effect
-            .persist(BatchSpecificationPaused(batchSpecificationId))
-            .thenReply(replyTo)(_ => StatusReply.Ack)
-        }
+          .find(_.id == batchSpecificationId)
+          .fold[ReplyEffect[BatchSpecificationEvent, State]](Effect.reply(replyTo)(StatusReply.Error(s"BatchSpecification unknown ${batchSpecificationId}, can't pause it"))) { _ =>
+            Effect
+              .persist(BatchSpecificationPaused(batchSpecificationId))
+              .thenReply(replyTo)(_ => StatusReply.Ack)
+          }
+         */
     }
 
-  def eventHandler(state: State, event: Event): State =
+  def eventHandler(state: State, event: BatchSchedulerEvent): State =
     event match {
-      case BatchSpecificationAdded(batchSpecification) =>
+      case BatchSchedulerAdded(batchSpecification) =>
         state.copy(batchSpecifications = state.batchSpecifications :+ batchSpecification)
 
       case NextBatchSpecificationProcessed(batchSpecification) =>
@@ -165,7 +167,7 @@ object BatchSchedulerActor {
    * @param context An actor context to allow to spawn actors
    * @return A class containing the actor ref of the different routers for the different providers
    */
-  def spawnScrappers(context: ActorContext[Command]): Scrapers = {
+  def spawnScrappers(context: ActorContext[BatchSchedulerCommand]): Scrapers = {
     // Start a pool of DELCAMPE auction scrapper
     val pool =
       Routers

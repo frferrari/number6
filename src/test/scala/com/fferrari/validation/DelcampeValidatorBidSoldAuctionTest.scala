@@ -4,7 +4,10 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Bid, BidType, Price}
+import com.fferrari.auction.domain
+import com.fferrari.auction.domain.{Bid, Price}
+import com.fferrari.auction.validator.{BidDateNotFound, BidPriceNotFound, BidderNicknameNotFound, BidsContainerNotFound, DelcampeValidator, EndDateNotFound, FinalPriceNotFound, IdNotFound, LargeImageUrlNotFound, MissingBidsForClosedAuction, RequestForBidCountForOngoingAuction, RequestForBidsForOngoingAuction, SellerLocationNotFound, SellerNicknameNotFound, StartDateNotFound, StartPriceNotFound, TitleNotFound}
+import com.fferrari.model.BidType
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -158,9 +161,9 @@ class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with
       Valid(
         List(
           Bid("chantal27", Price(2.30, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 18, 51, 41)),
-          Bid("bercat51", Price(2.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 13, 39, 43)),
-          Bid("basket2505", Price(2.10, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 10, 56, 30)),
-          Bid("bercat51", Price(2.00, "EUR"), 1, false, LocalDateTime.of(2020, 11, 4, 18, 20, 19))
+          domain.Bid("bercat51", Price(2.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 13, 39, 43)),
+          domain.Bid("basket2505", Price(2.10, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 10, 56, 30)),
+          domain.Bid("bercat51", Price(2.00, "EUR"), 1, false, LocalDateTime.of(2020, 11, 4, 18, 20, 19))
         )
       )
   }

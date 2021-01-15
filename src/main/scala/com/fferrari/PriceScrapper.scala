@@ -9,8 +9,11 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.fferrari.actor.{BatchManagerActor, BatchSchedulerActor}
-import com.fferrari.model.{BatchSpecification, BatchSpecificationJsonProtocol}
+import com.fferrari.batch.application
+import com.fferrari.batch.domain.BatchSpecificationJsonProtocol
+import com.fferrari.batchmanager.application.BatchManagerActor
+import com.fferrari.batchscheduler.application.BatchSchedulerActor
+import com.fferrari.batchscheduler.domain.{BatchSpecification, BatchSpecificationJsonProtocol}
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.DurationInt
@@ -27,13 +30,14 @@ object PriceScrapper
   implicit val executionContext: ExecutionContextExecutor = actorSystem.executionContext
 
   def mainBehavior: Behavior[Command] = Behaviors.setup { context =>
-    // Start the batch manage actor
-    val batchManager: ActorRef[BatchManagerActor.Command] =
-      context.spawn(BatchManagerActor(), BatchManagerActor.actorName)
 
     // Start the batch scheduler actor
-    val batchScheduler: ActorRef[BatchSchedulerActor.Command] =
+    val batchScheduler: ActorRef[BatchSchedulerActor.BatchSpecificationCommand] =
       context.spawn(BatchSchedulerActor(), BatchSchedulerActor.actorName)
+
+    // Start the batch manager actor
+    val batchManager: ActorRef[BatchManagerActor.BatchManagerCommand] =
+      context.spawn(BatchManagerActor(batchScheduler), BatchManagerActor.actorName)
 
     val routes: Route =
       path("add") {
