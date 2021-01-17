@@ -3,8 +3,6 @@ package com.fferrari.batchmanager.domain
 import java.time.Instant
 import java.util.UUID
 
-import spray.json.{DefaultJsonProtocol, JsArray, JsBoolean, JsNumber, JsString, JsValue, RootJsonFormat}
-
 case class BatchSpecification(batchSpecificationID: BatchSpecification.ID,
                               name: String,
                               description: String,

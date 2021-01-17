@@ -9,6 +9,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
+import com.fferrari.batch.domain.BatchEntity
 import com.fferrari.batchmanager.application.BatchManagerActor
 import com.fferrari.batchmanager.domain.BatchManagerEntity
 import com.fferrari.batchscheduler.application.BatchSchedulerActor
@@ -30,20 +31,23 @@ object PriceScrapper
   implicit val executionContext: ExecutionContextExecutor = actorSystem.executionContext
 
   def mainBehavior: Behavior[Command] = Behaviors.setup { context =>
+    implicit val askTimeout: Timeout = 3.seconds
+
     // Start the batch manage actor
     val batchManager: ActorRef[BatchManagerEntity.Command] =
       context.spawn(BatchManagerActor.apply, BatchManagerActor.actorName)
+    batchManager.ask(BatchManagerEntity.Create)(askTimeout, context.system.scheduler)
 
     // Start the batch scheduler actor
     val batchScheduler: ActorRef[BatchSchedulerEntity.Command] =
       context.spawn(BatchSchedulerActor.apply, BatchSchedulerActor.actorName)
+    batchScheduler.ask(BatchSchedulerEntity.Create)(askTimeout, context.system.scheduler)
 
     val routes: Route =
       path("add") {
         post {
           entity(as[Specification]) { batchSpecification =>
             onComplete {
-              implicit val timeout: Timeout = 3.seconds
               batchScheduler.ask(BatchSchedulerEntity.AddBatchSpecification(
                 batchSpecification.name,
                 batchSpecification.description,
@@ -62,7 +66,6 @@ object PriceScrapper
         put {
           entity(as[String]) { batchSpecificationID =>
             onComplete {
-              implicit val timeout: Timeout = 3.seconds
               batchScheduler.ask(BatchSchedulerEntity.PauseBatchSpecification(java.util.UUID.fromString(batchSpecificationID), _))
             } { _ => complete(StatusCodes.OK) }
           }

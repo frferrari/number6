@@ -8,7 +8,7 @@ import com.fferrari.batchmanager.domain.BatchManagerEntity
 import com.fferrari.batchmanager.domain.BatchManagerEntity.Command
 
 object BatchManagerActor {
-  val actorName = "batchManager"
+  val actorName = "batch-manager"
 
   val BatchManagerServiceKey = ServiceKey[Command]("batchManagerService")
 

@@ -65,6 +65,8 @@ object BatchSchedulerEntity {
 
     override def applyEvent(event: Event)(implicit context: ActorContext[Command]): BatchScheduler = event match {
       case Created(timestamp) =>
+        context.log.info("BatchScheduler is Created")
+        context.self ! ProcessBatchSpecification
         ActiveBatchScheduler(Nil)
 
       case _ =>
@@ -105,12 +107,15 @@ object BatchSchedulerEntity {
         }
 
       case ProcessBatchSpecification =>
+        context.log.info(s"ProcessNextBatchSpecification idx=$batchSpecificationIdx")
         batchSpecifications.lift(batchSpecificationIdx) match {
-          case Some(batchSpecification) =>
+          case Some(batchSpecification) if batchSpecification.needsUpdate() =>
             Effect
               .persist(NextBatchSpecificationProcessed(batchSpecification.batchSpecificationID, Clock.now))
               .thenRun(extractBachSpecification(scrapers, batchSpecification))
+              .thenRun(_ => timers.startSingleTimer(ProcessBatchSpecification, 30.seconds))
               .thenNoReply()
+
 
           case _ =>
             nextBatchSpecificationIdx(batchSpecifications)
@@ -129,9 +134,12 @@ object BatchSchedulerEntity {
 
     override def applyEvent(event: Event)(implicit context: ActorContext[Command]): BatchScheduler = event match {
       case BatchSpecificationAdded(batchSpecificationID, timestamp, name, description, url, provider, intervalSeconds) =>
-        copy(batchSpecifications = batchSpecifications :+ BatchSpecification(batchSpecificationID, name, description, url, provider, intervalSeconds, Clock.now, false, None))
+        val batchSpecification = BatchSpecification(batchSpecificationID, name, description, url, provider, intervalSeconds, Clock.now, false, None)
+        context.log.info(s"BatchSpecificationAdded $batchSpecification")
+        copy(batchSpecifications = batchSpecifications :+ batchSpecification)
 
       case LastUrlVisitedUpdated(batchSpecificationID, timestamp, lastUrlVisited) =>
+        context.log.info(s"LastUrlVisitedUpdated to $lastUrlVisited for batch $batchSpecificationID")
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
           val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited))
@@ -139,13 +147,14 @@ object BatchSchedulerEntity {
         } else throw new IllegalStateException(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (event)")
 
       case BatchSpecificationPaused(batchSpecificationID, timestamp) =>
+        context.log.info(s"BatchSpecificationPaused for batch $batchSpecificationID")
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
           val newBatchSpecification = batchSpecifications(idx).copy(paused = true)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
 
-      case _: BatchSpecificationAdded =>
+      case _ =>
         throw new IllegalStateException(s"Unexpected event $event in state [ActiveBatchScheduler]")
     }
   }
