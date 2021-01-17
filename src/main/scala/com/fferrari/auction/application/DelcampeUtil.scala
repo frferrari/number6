@@ -1,11 +1,10 @@
-package com.fferrari.scraper
+package com.fferrari.auction.application
 
-import java.time.LocalDateTime
+import java.time.{Instant, LocalDateTime, ZoneOffset}
 
 import cats.data.ValidatedNec
-import cats.implicits._
-import com.fferrari.model.Price
-import com.fferrari.validation._
+import cats.implicits.catsSyntaxValidatedIdBinCompat0
+import com.fferrari.auction.domain.Price
 
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.matching.Regex
@@ -55,7 +54,7 @@ object DelcampeUtil {
    * @param htmlDate A Date of the follawing form "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
    * @return
    */
-  def parseHtmlDate(htmlDate: String): ValidatedNec[AuctionDomainValidation, LocalDateTime] = {
+  def parseHtmlDate(htmlDate: String): ValidatedNec[InvalidDateFormat.type, Instant] = {
     // htmlDate is expected to be of the following form
     // "Ended on<br>Sunday, November 15, 2020 at 7:32 PM."
 
@@ -66,7 +65,7 @@ object DelcampeUtil {
       .replace(".", "")
       .replace(",", "")
 
-    Try(LocalDateTime.parse(curatedDate, dateFormat))
+    Try(LocalDateTime.parse(curatedDate, dateFormat).toInstant(ZoneOffset.UTC))
       .map(_.validNec)
       .getOrElse(InvalidDateFormat.invalidNec)
   }
@@ -76,7 +75,7 @@ object DelcampeUtil {
    * @param htmlShortDate A Date of the following form "Nov 15, 2020 at 7:17:06 PM"
    * @return
    */
-  def parseHtmlShortDate(htmlShortDate: String): ValidatedNec[AuctionDomainValidation, LocalDateTime] = {
+  def parseHtmlShortDate(htmlShortDate: String): ValidatedNec[InvalidShortDateFormat.type, Instant] = {
     // htmlDate is expected to be of the following form
     // "Nov 15, 2020 at 7:17:06 PM"
 
@@ -85,7 +84,7 @@ object DelcampeUtil {
         .replace(" at ", " ")
         .replace(",", "")
 
-    Try(LocalDateTime.parse(curatedDate, shortDateFormat))
+    Try(LocalDateTime.parse(curatedDate, shortDateFormat).toInstant(ZoneOffset.UTC))
       .map(_.validNec)
       .getOrElse(InvalidShortDateFormat.invalidNec)
   }

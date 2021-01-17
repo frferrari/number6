@@ -22,7 +22,7 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
   with BatchSchedulerSpecFixture {
 
   private val eventSourcedTestKit =
-    EventSourcedBehaviorTestKit[BatchSchedulerActor.Command, BatchSchedulerActor.Event, BatchSchedulerActor.State](
+    EventSourcedBehaviorTestKit[BatchSchedulerActor.Command, BatchSchedulerActor.Event, BatchSchedulerActor.BatchScheduler](
       system,
       BatchSchedulerActor())
 
@@ -36,18 +36,18 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
       val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification1, _))
       result.reply shouldBe StatusReply.Ack
       result.event shouldBe BatchSchedulerActor.BatchSpecificationAdded(batchSpecification1)
-      result.stateOfType[BatchSchedulerActor.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
+      result.stateOfType[BatchSchedulerActor.BatchScheduler].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
     }
     "SUCCEED Adding two different specifications" in {
       val result1 = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification1, _))
       result1.reply shouldBe StatusReply.Ack
       result1.event shouldBe BatchSchedulerActor.BatchSpecificationAdded(batchSpecification1)
-      result1.stateOfType[BatchSchedulerActor.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
+      result1.stateOfType[BatchSchedulerActor.BatchScheduler].batchSpecifications should contain theSameElementsAs (List(batchSpecification1))
 
       val result2 = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification2, _))
       result2.reply shouldBe StatusReply.Ack
       result2.event shouldBe BatchSchedulerActor.BatchSpecificationAdded(batchSpecification2)
-      result2.stateOfType[BatchSchedulerActor.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2))
+      result2.stateOfType[BatchSchedulerActor.BatchScheduler].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2))
     }
     "FAIL Adding an existing specification" in {
       eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification1, _))
@@ -63,7 +63,7 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
       val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.UpdateLastUrl(batchSpecification2.id, lastUrl, _))
       result.reply shouldBe StatusReply.Ack
       result.event shouldBe BatchSchedulerActor.LastUrlUpdated(batchSpecification2.id, lastUrl)
-      result.stateOfType[BatchSchedulerActor.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(lastUrl)))
+      result.stateOfType[BatchSchedulerActor.BatchScheduler].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(lastUrl)))
     }
     "FAIL Updating the lastUrl for an unknown batch specification" in {
       val lastUrl = "http://lasturl.com"
@@ -79,7 +79,7 @@ class BatchSchedulerActorSpec extends ScalaTestWithActorTestKit(EventSourcedBeha
       val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.PauseBatchSpecification(batchSpecification2.id, _))
       result.reply shouldBe StatusReply.Ack
       result.event shouldBe BatchSchedulerActor.BatchSpecificationPaused(batchSpecification2.id)
-      result.stateOfType[BatchSchedulerActor.State].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(paused = true)))
+      result.stateOfType[BatchSchedulerActor.BatchScheduler].batchSpecifications should contain theSameElementsAs (List(batchSpecification1, batchSpecification2.copy(paused = true)))
     }
     "FAIL Pausing an unknown batch specification" in {
       eventSourcedTestKit.runCommand[StatusReply[Done]](BatchSchedulerActor.AddBatchSpecification(batchSpecification1, _))

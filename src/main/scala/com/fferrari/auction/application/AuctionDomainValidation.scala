@@ -1,4 +1,4 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
 sealed trait AuctionDomainValidation {
   def errorMessage: String

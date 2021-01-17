@@ -1,5 +1,6 @@
 package com.fferrari.batch.domain
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.Done
@@ -8,40 +9,49 @@ import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import com.fferrari.auction.domain.Auction
-import com.fferrari.batchspecification.domain.BatchSpecificationEntity
+import com.fferrari.batchmanager.domain.BatchSpecification
+import com.fferrari.common.Clock
+import com.fferrari.common.Entity.{EntityCommand, EntityEvent}
 
 object BatchEntity {
-  sealed trait BatchCommand
-  final case class CreateBatch(batchID: BatchEntity.ID,
-                               batchSpecificationID: BatchSpecificationEntity.ID,
-                               auctions: List[Auction],
-                               replyTo: ActorRef[StatusReply[Done]]) extends BatchCommand
+  // Commands
+  sealed trait Command extends EntityCommand
+  final case class Create(batchID: BatchEntity.ID,
+                          batchSpecificationID: BatchSpecification.ID,
+                          auctions: List[Auction],
+                          replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class MatchAuction(auctionID: Auction.ID,
                                 matchID: UUID,
-                                replyTo: ActorRef[StatusReply[Done]]) extends BatchCommand
+                                replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class Stop(replyTo: ActorRef[StatusReply[Done]]) extends Command
 
-  sealed trait BatchEvent
-  final case class BatchCreated(batchID: BatchEntity.ID,
-                                batchSpecificationID: BatchSpecificationEntity.ID,
-                                auctions: List[Auction]) extends BatchEvent
+  // Events
+  sealed trait Event extends EntityEvent
+  final case class Created(batchID: BatchEntity.ID,
+                           timestamp: Instant,
+                           batchSpecificationID: BatchSpecification.ID,
+                           auctions: List[Auction]) extends Event
   final case class AuctionMatched(auctionID: Auction.ID,
-                                  matchID: UUID) extends BatchEvent
+                                  timestamp: Instant,
+                                  matchID: UUID) extends Event
+  final case class Stopped(timestamp: Instant) extends Event
 
   type ID = UUID
+  def generateID: UUID = UUID.randomUUID()
 
-  type ReplyEffect = akka.persistence.typed.scaladsl.ReplyEffect[BatchEvent, Batch]
+  type ReplyEffect = akka.persistence.typed.scaladsl.ReplyEffect[Event, Batch]
 
   sealed trait Batch {
-    def applyCommand(cmd: BatchCommand): ReplyEffect
+    def applyCommand(cmd: Command): ReplyEffect
 
-    def applyEvent(event: BatchEvent): Batch
+    def applyEvent(event: Event): Batch
   }
 
   case object EmptyBatch extends Batch {
-    override def applyCommand(cmd: BatchCommand): ReplyEffect = cmd match {
-      case CreateBatch(batchID, batchSpecificationID, auctions, replyTo) =>
+    override def applyCommand(cmd: Command): ReplyEffect = cmd match {
+      case Create(batchID, batchSpecificationID, auctions, replyTo) =>
         Effect
-          .persist(BatchCreated(batchID, batchSpecificationID, auctions))
+          .persist(Created(batchID, Clock.now, batchSpecificationID, auctions))
           .thenReply(replyTo)(_ => StatusReply.Ack)
 
       case _ =>
@@ -50,8 +60,8 @@ object BatchEntity {
           .thenNoReply()
     }
 
-    override def applyEvent(event: BatchEvent): Batch = event match {
-      case BatchCreated(batchID, batchSpecificationID, auctions) =>
+    override def applyEvent(event: Event): Batch = event match {
+      case Created(batchID, timestamp, batchSpecificationID, auctions) =>
         ActiveBatch(batchID, batchSpecificationID, auctions)
 
       case _ =>
@@ -59,11 +69,16 @@ object BatchEntity {
     }
   }
 
-  case class ActiveBatch(batchID: BatchEntity.ID, batchSpecificationID: BatchSpecificationEntity.ID, auctions: List[Auction]) extends Batch {
-    override def applyCommand(cmd: BatchCommand): ReplyEffect = cmd match {
+  case class ActiveBatch(batchID: BatchEntity.ID, batchSpecificationID: BatchSpecification.ID, auctions: List[Auction]) extends Batch {
+    override def applyCommand(cmd: Command): ReplyEffect = cmd match {
       case MatchAuction(auctionID, matchID, replyTo) =>
         Effect
-          .persist(AuctionMatched(auctionID, matchID))
+          .persist(AuctionMatched(auctionID, Clock.now, matchID))
+          .thenReply(replyTo)(_ => StatusReply.Ack)
+
+      case Stop(replyTo) =>
+        Effect
+          .persist(Stopped(Clock.now))
           .thenReply(replyTo)(_ => StatusReply.Ack)
 
       case _ =>
@@ -72,21 +87,36 @@ object BatchEntity {
           .thenNoReply()
     }
 
-    override def applyEvent(event: BatchEvent): Batch = event match {
-      case AuctionMatched(auctionID, matchID) =>
+    override def applyEvent(event: Event): Batch = event match {
+      case AuctionMatched(auctionID, timestamp, matchID) =>
         val idx = auctions.indexWhere(_.auctionID == auctionID)
         if (idx >= 0) {
           val newAuction: Auction = auctions(idx).copy(matchID)
           copy(auctions = auctions.updated(idx, newAuction))
         } else throw new IllegalArgumentException(s"Trying to match an unknown auction ($auctionID)")
 
+      case Stopped(timestamp) =>
+        InactiveBatch
+
       case _ =>
         throw new IllegalStateException(s"Unexpected event $event in state [ActiveBatch]")
     }
   }
 
-  def apply(persistenceId: PersistenceId): Behavior[BatchCommand] = {
-    EventSourcedBehavior.withEnforcedReplies[BatchCommand, BatchEvent, Batch](
+  case object InactiveBatch extends Batch {
+    override def applyCommand(cmd: Command): ReplyEffect = cmd match {
+      case _ =>
+        throw new IllegalStateException(s"Unexpected command $cmd in state [InactiveBatch]")
+    }
+
+    override def applyEvent(event: Event): Batch = event match {
+      case _ =>
+        throw new IllegalStateException(s"Unexpected event $event in state [InactiveBatch]")
+    }
+  }
+
+  def apply(persistenceId: PersistenceId): Behavior[Command] = {
+    EventSourcedBehavior.withEnforcedReplies[Command, Event, Batch](
       persistenceId,
       EmptyBatch,
       (state, cmd) => state.applyCommand(cmd),

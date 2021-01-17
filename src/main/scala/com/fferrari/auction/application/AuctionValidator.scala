@@ -1,11 +1,13 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
-import java.time.LocalDateTime
+import java.time.{Instant, LocalDateTime}
+import java.util.UUID
 
 import cats.data.{NonEmptyChain, Validated}
-import cats.implicits.{catsSyntaxTuple15Semigroupal, catsSyntaxValidatedIdBinCompat0}
-import com.fferrari.model.Auction.AuctionType
-import com.fferrari.model._
+import cats.implicits._
+import com.fferrari.auction.domain.Auction.AuctionType
+import com.fferrari.auction.domain.{Auction, AuctionLink, Batch, Bid, ListingPageAuctionLinks, Price}
+import com.fferrari.batchmanager.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 
@@ -15,21 +17,23 @@ trait AuctionValidator {
 
   def itemsPerPage: Int
 
-  def fetchListingPage(batchSpecification: BatchSpecification,
+  def fetchListingPage(url: String,
                        getPage: String => Try[JsoupDocument],
                        pageNumber: Int = 1)
                       (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument]
 
-  def fetchAuctionUrls(batchSpecification: BatchSpecification)
-                      (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch]
+  def fetchListingPageAuctionLinks(listingPageUrl: String, lastUrlVisited: Option[String])
+                                  (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], ListingPageAuctionLinks]
 
-  def fetchAuction(batchAuctionLink: BatchAuctionLink, batchSpecification: BatchSpecification)
+  def fetchAuction(batchAuctionLink: AuctionLink, batchSpecificationID: BatchSpecification.ID)
                   (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], Auction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(batchAuctionLink.auctionUrl)
 
-    (validateAuctionType,
-      batchSpecification.validNec,
+    (Auction.generateID.validNec,
+      validateAuctionType,
+      batchSpecificationID.validNec,
       validateExternalId,
+      None.validNec,
       batchAuctionLink.auctionUrl.validNec,
       validateTitle,
       validateIsSold,
@@ -41,7 +45,7 @@ trait AuctionValidator {
       validateBids).mapN(Auction.apply)
   }
 
-  def nextBatchId: String
+  def nextBatchId: UUID
 
   def validateExternalId(implicit htmlDoc: JsoupDocument): ValidationResult[String]
 
@@ -59,9 +63,9 @@ trait AuctionValidator {
 
   def validateFinalPrice(implicit htmlDoc: JsoupDocument): ValidationResult[Option[Price]]
 
-  def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[LocalDateTime]
+  def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[Instant]
 
-  def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[LocalDateTime]]
+  def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[Instant]]
 
   def validateLargeImageUrl(implicit htmlDoc: JsoupDocument): ValidationResult[String]
 

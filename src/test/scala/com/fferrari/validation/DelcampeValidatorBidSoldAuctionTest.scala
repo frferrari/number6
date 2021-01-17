@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.{Bid, Price}
+import com.fferrari.auction.application.{BidDateNotFound, BidPriceNotFound, BidderNicknameNotFound, BidsContainerNotFound, DelcampeValidator, EndDateNotFound, FinalPriceNotFound, IdNotFound, LargeImageUrlNotFound, MissingBidsForClosedAuction, RequestForBidCountForOngoingAuction, RequestForBidsForOngoingAuction, SellerLocationNotFound, SellerNicknameNotFound, StartDateNotFound, StartPriceNotFound, TitleNotFound}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL._

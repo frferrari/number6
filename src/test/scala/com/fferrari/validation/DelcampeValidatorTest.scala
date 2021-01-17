@@ -2,6 +2,7 @@ package com.fferrari.validation
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
+import com.fferrari.auction.application.{AuctionLinkNotFound, AuctionTypeNotFound, DelcampeValidator, LastListingPageReached, MaximumNumberOfAllowedPagesReached, ThumbnailLinkNotFound}
 import com.fferrari.model.{Auction, BatchAuctionLink, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
@@ -49,7 +50,7 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification("example", "an example", "provider", "http://www.example.com", 60)
-    delcampeValidator.fetchAuctionUrls(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionLinks) shouldBe
       Valid(
         List(
           BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
@@ -90,7 +91,7 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, Some("http://www.example.com/auction3"))
-    delcampeValidator.fetchAuctionUrls(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionUrls) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionLinks) shouldBe
       Valid(
         List(
           BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
@@ -122,7 +123,7 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, None)
-    delcampeValidator.fetchAuctionUrls(batchSpecification)(jsoupBrowser.parseString(htmlString)) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(AuctionLinkNotFound, ThumbnailLinkNotFound))
   }
 

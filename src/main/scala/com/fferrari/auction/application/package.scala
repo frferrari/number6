@@ -1,7 +1,7 @@
-package com.fferrari
+package com.fferrari.auction
 
 import cats.data.ValidatedNec
 
-package object validation {
+package object application {
   type ValidationResult[A] = ValidatedNec[AuctionDomainValidation, A]
 }

@@ -4,9 +4,8 @@ import java.time.LocalDateTime
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.model.Price
-import com.fferrari.scraper.DelcampeUtil
-import com.fferrari.validation.{InvalidBidQuantityFormat, InvalidDateFormat, InvalidPriceFormat, InvalidShortDateFormat}
+import com.fferrari.auction.application.{DelcampeUtil, InvalidBidQuantityFormat, InvalidDateFormat, InvalidPriceFormat, InvalidShortDateFormat}
+import com.fferrari.validation.InvalidPriceFormat
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

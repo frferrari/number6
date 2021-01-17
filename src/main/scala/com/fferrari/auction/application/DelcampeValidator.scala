@@ -1,13 +1,14 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
-import java.time.LocalDateTime
+import java.time.{Instant, LocalDateTime}
+import java.util.UUID
 
 import cats.data._
 import cats.implicits._
-import com.fferrari.model.Auction.AuctionType
-import com.fferrari.model._
-import com.fferrari.scraper.DelcampeUtil
-import com.fferrari.scraper.DelcampeUtil.relativeToAbsoluteUrl
+import com.fferrari.auction.application.DelcampeUtil.relativeToAbsoluteUrl
+import com.fferrari.auction.domain.Auction.AuctionType
+import com.fferrari.auction.domain._
+import com.fferrari.batchmanager.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -30,7 +31,7 @@ class DelcampeValidator extends AuctionValidator {
 
   val itemsPerPage: Int = 24
 
-  override def fetchListingPage(batchSpecification: BatchSpecification,
+  override def fetchListingPage(listingPageUrl: String,
                                 getPage: String => Try[JsoupDocument],
                                 pageNumber: Int = 1)
                                (implicit jsoupBrowser: JsoupBrowser): ValidationResult[JsoupDocument] = {
@@ -45,18 +46,18 @@ class DelcampeValidator extends AuctionValidator {
         htmlDoc.validNec
     }
 
-    getPage(s"${batchSpecification.url}&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber")
+    getPage(s"$listingPageUrl&order=sale_start_datetime&display_state=sold_items&size=$itemsPerPage&page=$pageNumber")
       .map(checkPageValidity)
       .getOrElse(ListingPageNotFound.invalidNec)
   }
 
-  override def fetchAuctionUrls(batchSpecification: BatchSpecification)
-                               (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Batch] = {
+  override def fetchListingPageAuctionLinks(listingPageUrl: String, lastUrlVisited: Option[String])
+                                           (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], ListingPageAuctionLinks] = {
 
-    def fetchLinks(el: Element): ValidationResult[BatchAuctionLink] = {
+    def fetchLinks(el: Element): ValidationResult[AuctionLink] = {
       val auctionUrl: ValidationResult[String] =
         (el >?> attr("href")("div.item-info a.item-link"))
-          .map(relativeToAbsoluteUrl(batchSpecification.url, _).validNec)
+          .map(relativeToAbsoluteUrl(listingPageUrl, _).validNec)
           .getOrElse(AuctionLinkNotFound.invalidNec)
 
       val thumbUrl: ValidationResult[String] =
@@ -64,26 +65,26 @@ class DelcampeValidator extends AuctionValidator {
           .map(_.validNec)
           .getOrElse(ThumbnailLinkNotFound.invalidNec)
 
-      (auctionUrl, thumbUrl).mapN(BatchAuctionLink)
+      (auctionUrl, thumbUrl).mapN(AuctionLink)
     }
 
     (htmlDoc >> elementList("div.items.main div.item-listing div.item-main-infos"))
       .map(fetchLinks)
       .sequence
       .map { batchAuctionLink =>
-        batchSpecification.lastUrlScrapped match {
-          case Some(lastScrappedUrl) if batchAuctionLink.map(_.auctionUrl).contains(lastScrappedUrl) =>
-            // Keep only the auction urls that have not yet been processed (since the last run)
-            batchAuctionLink.takeWhile(_.auctionUrl != lastScrappedUrl)
+        lastUrlVisited match {
+          case Some(luv) if batchAuctionLink.map(_.auctionUrl).contains(luv) =>
+            // Keep only the auction urls that have not yet been fetched (since the last run)
+            batchAuctionLink.takeWhile(_.auctionUrl != luv)
           case _ =>
             batchAuctionLink
         }
       }
-      .map(Batch(nextBatchId, batchSpecification, _, Nil))
+      .map(ListingPageAuctionLinks(listingPageUrl, _))
   }
 
-  override def nextBatchId: String = {
-    java.util.UUID.randomUUID().toString
+  override def nextBatchId: UUID = {
+    java.util.UUID.randomUUID()
   }
 
   override def validateExternalId(implicit htmlDoc: JsoupDocument): ValidationResult[String] = {
@@ -201,12 +202,12 @@ class DelcampeValidator extends AuctionValidator {
     }
   }
 
-  override def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[LocalDateTime] =
+  override def validateStartDate(implicit htmlDoc: JsoupDocument): ValidationResult[Instant] =
     (htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(1) div"))
       .map(DelcampeUtil.parseHtmlDate)
       .getOrElse(StartDateNotFound.invalidNec)
 
-  override def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[LocalDateTime]] = {
+  override def validateEndDate(implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], Option[Instant]] = {
     val htmlClosedSell: Option[Element] = fetchClosedSellElement
     val htmlEndDate: Option[String] = htmlDoc >?> text("div#collapse-description div.description-info ul li:nth-child(2) div")
 
@@ -266,7 +267,7 @@ class DelcampeValidator extends AuctionValidator {
         val htmlNickname: ValidationResult[String] = fetchFixedPriceTypePurchaseNickname(purchase)
         val htmlPrice: ValidationResult[Price] = fetchFixedPriceTypePurchasePrice
         val htmlBidQuantity: ValidationResult[Int] = fetchFixedPriceTypePurchaseQuantity(purchase)
-        val htmlPurchaseDate: ValidationResult[LocalDateTime] = fetchFixedPriceTypePurchaseDate(purchase)
+        val htmlPurchaseDate: ValidationResult[Instant] = fetchFixedPriceTypePurchaseDate(purchase)
 
         (htmlNickname, htmlPrice, htmlBidQuantity, false.validNec, htmlPurchaseDate)
           .mapN(Bid)
@@ -290,7 +291,7 @@ class DelcampeValidator extends AuctionValidator {
       .map(DelcampeUtil.parseHtmlQuantity)
       .getOrElse(InvalidBidQuantityFormat.invalidNec)
 
-  def fetchFixedPriceTypePurchaseDate(bid: Element): ValidationResult[LocalDateTime] = {
+  def fetchFixedPriceTypePurchaseDate(bid: Element): ValidationResult[Instant] = {
     val htmlPurchaseDate: Option[String] = bid >?> text("li:nth-child(3)")
     val htmlPurchaseTime: Option[String] = bid >?> text("li:nth-child(4)")
 
@@ -309,7 +310,7 @@ class DelcampeValidator extends AuctionValidator {
           val htmlNickname: ValidationResult[String] = fetchBidTypeBidderNickname(bid)
           val isAutomaticBid: ValidationResult[Boolean] = fetchBidTypeIsAutomaticBid(bid)
           val htmlPrice: ValidationResult[Price] = fetchBidTypeBidPrice(bid)
-          val htmlBidDate: ValidationResult[LocalDateTime] = fetchBidTypeBidDate(bid)
+          val htmlBidDate: ValidationResult[Instant] = fetchBidTypeBidDate(bid)
 
           (htmlNickname, htmlPrice, 1.validNec, isAutomaticBid, htmlBidDate).mapN(Bid)
         }.sequence
@@ -333,7 +334,7 @@ class DelcampeValidator extends AuctionValidator {
       .map(DelcampeUtil.parseHtmlPrice)
       .getOrElse(BidPriceNotFound.invalidNec)
 
-  def fetchBidTypeBidDate(bid: Element): ValidationResult[LocalDateTime] =
+  def fetchBidTypeBidDate(bid: Element): ValidationResult[Instant] =
     (bid >?> text("li:nth-child(3)"))
       .map(DelcampeUtil.parseHtmlShortDate)
       .getOrElse(BidDateNotFound.invalidNec)
