@@ -133,6 +133,9 @@ object BatchSchedulerEntity {
     }
 
     override def applyEvent(event: Event)(implicit context: ActorContext[Command]): BatchScheduler = event match {
+      case _: Created =>
+        throw new IllegalStateException(s"Unexpected event $event received in state [ActiveBatchScheduler]")
+
       case BatchSpecificationAdded(batchSpecificationID, timestamp, name, description, url, provider, intervalSeconds) =>
         val batchSpecification = BatchSpecification(batchSpecificationID, name, description, url, provider, intervalSeconds, Clock.now, false, None)
         context.log.info(s"BatchSpecificationAdded $batchSpecification")
@@ -154,8 +157,8 @@ object BatchSchedulerEntity {
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
 
-      case _ =>
-        throw new IllegalStateException(s"Unexpected event $event in state [ActiveBatchScheduler]")
+      case _: NextBatchSpecificationProcessed =>
+        this
     }
   }
 
