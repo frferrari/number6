@@ -21,8 +21,7 @@ import scala.concurrent.duration._
 object BatchManagerEntity {
   sealed trait Command extends EntityCommand
   final case class Create(replyTo: ActorRef[StatusReply[Done]]) extends Command
-  final case class CreateBatch(batchID: BatchEntity.ID,
-                               batchSpecificationID: BatchSpecification.ID,
+  final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
                                auctions: List[Auction],
                                replyTo: ActorRef[StatusReply[Done]]) extends Command
 
@@ -67,9 +66,9 @@ object BatchManagerEntity {
 
   case object ActiveBatchManager extends BatchManager {
     override def applyCommand(cmd: Command): ReplyEffect = cmd match {
-      case CreateBatch(batchID, batchSpecificationID, auctions, replyTo) =>
+      case CreateBatch(batchSpecificationID, auctions, replyTo) =>
         Effect
-          .persist(BatchCreated(batchID, Clock.now, batchSpecificationID, auctions))
+          .persist(BatchCreated(BatchEntity.generateID, Clock.now, batchSpecificationID, auctions))
           .thenReply(replyTo)(_ => StatusReply.Ack)
 
       case _ =>

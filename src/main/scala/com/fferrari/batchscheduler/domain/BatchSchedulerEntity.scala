@@ -4,6 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.Done
+import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.{ActorContext, TimerScheduler}
 import akka.pattern.StatusReply
@@ -14,8 +15,11 @@ import com.fferrari.batchmanager.domain.BatchSpecification
 import com.fferrari.batchscheduler.application.BatchSchedulerActor.Scrapers
 import com.fferrari.common.Clock
 import com.fferrari.common.Entity.{EntityCommand, EntityEvent}
+import net.sourceforge.htmlunit.corejs.javascript.WrappedException
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object BatchSchedulerEntity {
   val actorName = "batch-scheduler"
@@ -28,15 +32,22 @@ object BatchSchedulerEntity {
   case class PauseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
   // case class PauseProvider(provider: String) extends Command
 
+  sealed trait ProcessBatchSpecificationResult
+  final case class Scraping(batchSpecificationID: BatchSpecification.ID) extends ProcessBatchSpecificationResult
+  final case class Busy(request: BatchSpecification.ID, busy: BatchSpecification.ID) extends ProcessBatchSpecificationResult
+  final case class Unknown(message: String) extends ProcessBatchSpecificationResult
+  private final case class WrappedProcessBatchSpecificationResult(reply: ProcessBatchSpecificationResult) extends Command
+
   sealed trait Event extends EntityEvent
   case class Created(timestamp: Instant) extends Event
   final case class BatchSpecificationAdded(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, name: String, description: String, url: String, provider: String, intervalSeconds: Long) extends Event
-  final case class NextBatchSpecificationProcessed(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
+  final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification.ID, timestamp: Instant) extends Event
   final case class LastUrlVisitedUpdated(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, lastUrl: String) extends Event
   final case class BatchSpecificationPaused(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
 
   sealed trait Reply
   final case class BatchSpecificationAccepted(batchSpecificationID: ID) extends Reply
+
 
   type ID = UUID
 
@@ -92,6 +103,7 @@ object BatchSchedulerEntity {
             Effect
               .persist(LastUrlVisitedUpdated(batchSpecificationID, Clock.now, lastUrlVisited))
               .thenReply(replyTo)(_ => StatusReply.Ack)
+
           case None =>
             Effect.reply(replyTo)(StatusReply.error(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)"))
         }
@@ -110,26 +122,44 @@ object BatchSchedulerEntity {
         context.log.info(s"ProcessNextBatchSpecification idx=$batchSpecificationIdx")
         batchSpecifications.lift(batchSpecificationIdx) match {
           case Some(batchSpecification) if batchSpecification.needsUpdate() =>
-            Effect
-              .persist(NextBatchSpecificationProcessed(batchSpecification.batchSpecificationID, Clock.now))
-              .thenRun(extractBachSpecification(scrapers, batchSpecification))
-              .thenRun(_ => timers.startSingleTimer(ProcessBatchSpecification, 30.seconds))
-              .thenNoReply()
+            context.pipeToSelf(processBachSpecification(scrapers, batchSpecification, context)) {
+              case Success(statusReply) => statusReply.getValue match {
+                case AuctionScraperActor.StartProcessing(batchSpecificationID) =>
+                  WrappedProcessBatchSpecificationResult(Scraping(batchSpecificationID))
 
+                case AuctionScraperActor.Busy(requestBatchSpecificationID, busyBatchSpecificationID) =>
+                  WrappedProcessBatchSpecificationResult(Busy(requestBatchSpecificationID, busyBatchSpecificationID))
+              }
+
+              case Failure(f) =>
+                WrappedProcessBatchSpecificationResult(Unknown(f.getMessage))
+            }
+            Effect.none.thenNoReply()
 
           case _ =>
             nextBatchSpecificationIdx(batchSpecifications)
-            timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
+            timers.startSingleTimer(ProcessBatchSpecification, 2.seconds)
 
-            Effect
-              .unhandled
-              .thenNoReply()
+            Effect.none.thenNoReply()
         }
 
-      case _ =>
+      case WrappedProcessBatchSpecificationResult(Scraping(batchSpecificationID)) =>
+        timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
         Effect
-          .unhandled
+          .persist(NextBatchSpecificationProcessed(batchSpecificationID, Clock.now))
           .thenNoReply()
+
+      case WrappedProcessBatchSpecificationResult(Busy(requestBatchSpecificationID, busyBatchSpecificationID)) =>
+        context.log.info(s"Could not process batch specification $requestBatchSpecificationID because the scraper is busy on $busyBatchSpecificationID")
+        timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
+        Effect.none.thenNoReply()
+
+      case WrappedProcessBatchSpecificationResult(Unknown(message)) =>
+        context.log.error(s"Unexpected reply to processBatchProcessing request ($message)")
+        Effect.none.thenNoReply()
+
+      case _ =>
+        Effect.unhandled.thenNoReply()
     }
 
     override def applyEvent(event: Event)(implicit context: ActorContext[Command]): BatchScheduler = event match {
@@ -157,7 +187,7 @@ object BatchSchedulerEntity {
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
 
-      case _: NextBatchSpecificationProcessed =>
+      case NextBatchSpecificationProcessed(batchSpecificationID, timestamp) =>
         this
     }
   }
@@ -177,12 +207,18 @@ object BatchSchedulerEntity {
    * @param batchSpecification A batch specification for which to extract the auctions
    * @param newState The new state
    */
-  def extractBachSpecification(scrapers: Scrapers, batchSpecification: BatchSpecification)(newState: BatchScheduler): Unit = {
-    scrapers.delcampeScraperRouter ! AuctionScraperActor.ExtractListingPageUrls(
-      batchSpecification.batchSpecificationID,
-      batchSpecification.url,
-      batchSpecification.lastUrlVisited,
-      1)
+  def extractBachSpecification(scrapers: Scrapers,
+                               batchSpecification: BatchSpecification,
+                               context: ActorContext[Command])(newState: BatchScheduler): Future[StatusReply[AuctionScraperActor.Reply]] = {
+    // TODO Send to the appropriate scraper depending on the provider
+    scrapers.delcampeScraperRouter.ask(AuctionScraperActor.ProcessBatchSpecification(batchSpecification, _))(3.seconds, context.system.scheduler)
+  }
+
+  def processBachSpecification(scrapers: Scrapers,
+                               batchSpecification: BatchSpecification,
+                               context: ActorContext[Command]): Future[StatusReply[AuctionScraperActor.Reply]] = {
+    // TODO Send to the appropriate scraper depending on the provider
+    scrapers.delcampeScraperRouter.ask(AuctionScraperActor.ProcessBatchSpecification(batchSpecification, _))(3.seconds, context.system.scheduler)
   }
 
   /**
