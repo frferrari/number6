@@ -119,10 +119,10 @@ object BatchSchedulerEntity {
         }
 
       case ProcessBatchSpecification =>
-        context.log.info(s"ProcessNextBatchSpecification idx=$batchSpecificationIdx")
+        context.log.info(s"Received ProcessNextBatchSpecification command for idx $batchSpecificationIdx")
         batchSpecifications.lift(batchSpecificationIdx) match {
           case Some(batchSpecification) if batchSpecification.needsUpdate() =>
-            context.pipeToSelf(processBachSpecification(scrapers, batchSpecification, context)) {
+            context.pipeToSelf(processBatchSpecification(scrapers, batchSpecification, context)) {
               case Success(statusReply) => statusReply.getValue match {
                 case AuctionScraperActor.StartProcessing(batchSpecificationID) =>
                   WrappedProcessBatchSpecificationResult(Scraping(batchSpecificationID))
@@ -138,15 +138,15 @@ object BatchSchedulerEntity {
 
           case _ =>
             nextBatchSpecificationIdx(batchSpecifications)
-            timers.startSingleTimer(ProcessBatchSpecification, 2.seconds)
-
+            timers.startSingleTimer(ProcessBatchSpecification, 10.seconds) // TODO change from 10.seconds to 60.seconds
             Effect.none.thenNoReply()
         }
 
       case WrappedProcessBatchSpecificationResult(Scraping(batchSpecificationID)) =>
+        context.log.info(s"The scraper has started processing the batch specification $batchSpecificationID")
         timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
         Effect
-          .persist(NextBatchSpecificationProcessed(batchSpecificationID, Clock.now))
+          .persist(NextBatchSpecificationProcessed(batchSpecificationID, Clock.now)) // TODO remove this useless event
           .thenNoReply()
 
       case WrappedProcessBatchSpecificationResult(Busy(requestBatchSpecificationID, busyBatchSpecificationID)) =>
@@ -205,18 +205,10 @@ object BatchSchedulerEntity {
    * Tell the appropriate scraper to extract the auctions for the given batch specification
    * @param scrapers An object containing the different available scrapers
    * @param batchSpecification A batch specification for which to extract the auctions
-   * @param newState The new state
    */
-  def extractBachSpecification(scrapers: Scrapers,
-                               batchSpecification: BatchSpecification,
-                               context: ActorContext[Command])(newState: BatchScheduler): Future[StatusReply[AuctionScraperActor.Reply]] = {
-    // TODO Send to the appropriate scraper depending on the provider
-    scrapers.delcampeScraperRouter.ask(AuctionScraperActor.ProcessBatchSpecification(batchSpecification, _))(3.seconds, context.system.scheduler)
-  }
-
-  def processBachSpecification(scrapers: Scrapers,
-                               batchSpecification: BatchSpecification,
-                               context: ActorContext[Command]): Future[StatusReply[AuctionScraperActor.Reply]] = {
+  def processBatchSpecification(scrapers: Scrapers,
+                                batchSpecification: BatchSpecification,
+                                context: ActorContext[Command]): Future[StatusReply[AuctionScraperActor.Reply]] = {
     // TODO Send to the appropriate scraper depending on the provider
     scrapers.delcampeScraperRouter.ask(AuctionScraperActor.ProcessBatchSpecification(batchSpecification, _))(3.seconds, context.system.scheduler)
   }

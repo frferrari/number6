@@ -148,6 +148,10 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                               listingPageAuctionLinks: ListingPageAuctionLinks,
                               auctions: List[Auction] = Nil): Behavior[Command] = {
     Behaviors.receivePartial {
+      case (context, msg@ProcessBatchSpecification(_, replyTo)) =>
+        replyTo ! StatusReply.success(Busy(request = msg.batchSpecification.batchSpecificationID, busy = batchSpecification.batchSpecificationID))
+        Behaviors.same
+
       case (context, ExtractAuctions) =>
         listingPageAuctionLinks.auctionLinks match {
           case auctionLink :: remainingAuctionLinks =>

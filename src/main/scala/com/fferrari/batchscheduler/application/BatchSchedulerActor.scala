@@ -31,14 +31,7 @@ object BatchSchedulerActor {
    * @return A class containing the actor ref of the different routers for the different providers
    */
   def spawnScrappers(context: ActorContext[Command]): Scrapers = {
-    // Start a pool of DELCAMPE auction scraper
-    val pool =
-      Routers
-        .pool(poolSize = 5) {
-          Behaviors
-            .supervise(AuctionScraperActor(() => new DelcampeValidator)).onFailure[Exception](SupervisorStrategy.restart)
-        }
-    val delcampeScraperRouter: ActorRef[AuctionScraperActor.Command] = context.spawn(pool, AuctionScraperActor.actorName)
+    val delcampeScraperRouter: ActorRef[AuctionScraperActor.Command] = context.spawn(AuctionScraperActor(() => new DelcampeValidator), AuctionScraperActor.actorName)
 
     Scrapers(delcampeScraperRouter)
   }
