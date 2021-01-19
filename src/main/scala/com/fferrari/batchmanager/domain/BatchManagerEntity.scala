@@ -24,9 +24,9 @@ object BatchManagerEntity {
   // Command
   sealed trait Command extends EntityCommand
   final case class Create(replyTo: ActorRef[StatusReply[Done]]) extends Command
-  final case class AddBatchSpecification(name: String, description: String, url: String, provider: String, intervalSeconds: Long, replyTo: ActorRef[StatusReply[Reply]]) extends Command
+  final case class AddBatchSpecification(name: String, description: String, url: String, provider: String, intervalSeconds: Long, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class ProcessNextBatchSpecification(provider: String, replyTo: ActorRef[AuctionScraperActor.Command]) extends Command
-  final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String) extends Command
   final case class PauseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
@@ -44,10 +44,6 @@ object BatchManagerEntity {
   final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification.ID, timestamp: Instant) extends Event
   final case class LastUrlVisitedUpdated(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, lastUrl: String) extends Event
   final case class BatchSpecificationPaused(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
-
-  // Reply
-  sealed trait Reply
-  final case class BatchSpecificationAccepted(batchSpecificationID: ID) extends Reply
 
   type ID = UUID
 
@@ -93,20 +89,23 @@ object BatchManagerEntity {
           val batchSpecificationID = UUID.randomUUID()
           Effect
             .persist(BatchSpecificationAdded(batchSpecificationID, Clock.now, name, description, url, provider, intervalSeconds))
-            .thenReply(replyTo)(_ => StatusReply.success(BatchSpecificationAccepted(batchSpecificationID)))
+            .thenReply(replyTo)(_ => StatusReply.Ack)
         } else
           Effect
             .reply(replyTo)(StatusReply.error(s"A batchSpecification with the name $name already exists"))
 
-      case UpdateLastUrlVisited(batchSpecificationID, lastUrlVisited, replyTo) =>
+      case UpdateLastUrlVisited(batchSpecificationID, lastUrlVisited) =>
         batchSpecifications.find(_.batchSpecificationID == batchSpecificationID) match {
           case Some(_) =>
             Effect
               .persist(LastUrlVisitedUpdated(batchSpecificationID, Clock.now, lastUrlVisited))
-              .thenReply(replyTo)(_ => StatusReply.Ack)
+              .thenNoReply()
 
           case None =>
-            Effect.reply(replyTo)(StatusReply.error(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)"))
+            Effect
+              .none
+              .thenNoReply()
+            // (s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)"))
         }
 
       case PauseBatchSpecification(batchSpecificationID, replyTo) =>
@@ -120,7 +119,7 @@ object BatchManagerEntity {
         }
 
       case ProcessNextBatchSpecification(provider, replyTo) =>
-        context.log.info(s"Received ProcessNextBatchSpecification command")
+        context.log.info(s"Received ProcessNextBatchSpecification($provider)")
         batchSpecifications
           .filter(_.provider == provider)
           .filter(_.needsUpdate())

@@ -9,7 +9,6 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.util.Timeout
-import com.fferrari.batch.domain.BatchEntity
 import com.fferrari.batchmanager.application.BatchManagerActor
 import com.fferrari.batchmanager.domain.BatchManagerEntity
 import com.fferrari.common.{Specification, SpecificationJsonProtocol}
@@ -48,7 +47,7 @@ object PriceScrapper
                 batchSpecification.provider,
                 batchSpecification.intervalSeconds, _)
               )
-            } { _ =>complete(StatusCodes.OK) }
+            } { _ => complete(StatusCodes.OK) }
           }
         }
       } ~ path("info") {

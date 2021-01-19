@@ -1,16 +1,12 @@
 package com.fferrari.auction.application
 
-import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.AskPattern.Askable
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
+import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
-import akka.pattern.StatusReply
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.auction.application.DelcampeUtil.randomDurationMs
-import com.fferrari.auction.domain.{Auction, AuctionLink, Batch, ListingPageAuctionLinks}
-import com.fferrari.batch.domain.BatchEntity
-import com.fferrari.batchmanager.application.BatchManagerActor
+import com.fferrari.auction.domain.{Auction, ListingPageAuctionLinks}
 import com.fferrari.batchmanager.domain.{BatchManagerEntity, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
@@ -95,25 +91,25 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
 
               case Valid(ListingPageAuctionLinks(_, auctionLinks)) if auctionLinks.isEmpty =>
                 context.log.info(s"No auction links extracted from the listing page, going back to [idle] behavior")
-                idle
+                backToIdle
 
               case i =>
                 context.log.error(s"Error while fetching the listing page auction links ($i)")
-                idle
+                backToIdle
             }
 
           case Invalid(Chain(LastListingPageReached)) =>
             context.log.info(s"Last listing page reached, no more auction links to process")
-            idle
+            backToIdle
 
           case Invalid(i) =>
             context.log.error(s"No more auction links to process ($i)")
-            idle
+            backToIdle
         }
 
       case (context, cmd) =>
         context.log.error(s"Unexpected command $cmd received while in [processListingPage] behavior")
-        Behaviors.same
+        backToIdle
     }
 
   private def processAuctions(batchSpecification: BatchSpecification,
@@ -156,7 +152,12 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             context.log.info("No more auction links to process, creating a Batch, then moving to the next listing page")
 
             // Create a Batch with the extracted auctions
-            batchManagerRef.ask(ref => BatchManagerEntity.CreateBatch(batchSpecification.batchSpecificationID, auctions, ref))(3.seconds, context.system.scheduler)
+            batchManagerRef.ask(BatchManagerEntity.CreateBatch(batchSpecification.batchSpecificationID, auctions, _))(3.seconds, context.system.scheduler)
+
+            firstAuctionUrl
+              .collect { case url if pageNumber == 1 =>
+                batchManagerRef ! BatchManagerEntity.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url)
+              }
 
             // Move the the next listing page
             val newLastUrlVisited = if (pageNumber == 1) firstAuctionUrl else batchSpecification.lastUrlVisited
