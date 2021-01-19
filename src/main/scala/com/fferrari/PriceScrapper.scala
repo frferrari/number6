@@ -12,8 +12,6 @@ import akka.util.Timeout
 import com.fferrari.batch.domain.BatchEntity
 import com.fferrari.batchmanager.application.BatchManagerActor
 import com.fferrari.batchmanager.domain.BatchManagerEntity
-import com.fferrari.batchscheduler.application.BatchSchedulerActor
-import com.fferrari.batchscheduler.domain.BatchSchedulerEntity
 import com.fferrari.common.{Specification, SpecificationJsonProtocol}
 
 import scala.concurrent.ExecutionContextExecutor
@@ -38,17 +36,12 @@ object PriceScrapper
       context.spawn(BatchManagerActor.apply, BatchManagerActor.actorName)
     batchManager.ask(BatchManagerEntity.Create)(askTimeout, context.system.scheduler)
 
-    // Start the batch scheduler actor
-    val batchScheduler: ActorRef[BatchSchedulerEntity.Command] =
-      context.spawn(BatchSchedulerActor.apply, BatchSchedulerActor.actorName)
-    batchScheduler.ask(BatchSchedulerEntity.Create)(askTimeout, context.system.scheduler)
-
     val routes: Route =
       path("add") {
         post {
           entity(as[Specification]) { batchSpecification =>
             onComplete {
-              batchScheduler.ask(BatchSchedulerEntity.AddBatchSpecification(
+              batchManager.ask(BatchManagerEntity.AddBatchSpecification(
                 batchSpecification.name,
                 batchSpecification.description,
                 batchSpecification.url,
@@ -66,7 +59,7 @@ object PriceScrapper
         put {
           entity(as[String]) { batchSpecificationID =>
             onComplete {
-              batchScheduler.ask(BatchSchedulerEntity.PauseBatchSpecification(java.util.UUID.fromString(batchSpecificationID), _))
+              batchManager.ask(BatchManagerEntity.PauseBatchSpecification(java.util.UUID.fromString(batchSpecificationID), _))
             } { _ => complete(StatusCodes.OK) }
           }
         }

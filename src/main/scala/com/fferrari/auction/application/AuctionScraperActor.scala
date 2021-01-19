@@ -15,7 +15,7 @@ import com.fferrari.batchmanager.domain.{BatchManagerEntity, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
 import scala.concurrent.duration._
-import scala.util.Try
+import scala.util.{Success, Try}
 
 object AuctionScraperActor {
   val actorName = "auction-scraper"
@@ -23,11 +23,12 @@ object AuctionScraperActor {
 
   // Command
   sealed trait Command
-  final case object LookupBatchManager extends Command
-  final case class ProcessBatchSpecification(batchSpecification: BatchSpecification, replyTo: ActorRef[StatusReply[Reply]]) extends Command
+  final case object Start extends Command
+  final case object AskNextBatchSpecification extends Command
+  final case class ProceedToBatchSpecification(batchSpecification: BatchSpecification) extends Command
+  final case class ProcessBatchSpecification(batchSpecification: BatchSpecification) extends Command
   final case object ExtractListingPageUrls extends Command
   final case object ExtractAuctions extends Command
-  final case class ListingResponse(listing: Receptionist.Listing) extends Command
 
   // Reply
   sealed trait Reply
@@ -36,77 +37,52 @@ object AuctionScraperActor {
 
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
-  def apply[V <: AuctionValidator](validator: () => V): Behavior[Command] =
+  def apply[V <: AuctionValidator](validator: () => V, batchManagerRef: ActorRef[BatchManagerEntity.Command]): Behavior[Command] =
     Behaviors.setup { context =>
-      Behaviors.withTimers { timers =>
+      Behaviors.withTimers { implicit timers =>
         context.log.info("Starting")
 
-        val listingResponseAdapter: ActorRef[Receptionist.Listing] =
-          context.messageAdapter[Receptionist.Listing](ListingResponse)
-
-        context.log.info("Asking the Receptionist for the BatchManager ref")
-        new AuctionScraperActor(validator(), listingResponseAdapter, context, timers).lookupBatchManager()
+        new AuctionScraperActor(validator(), batchManagerRef).idle
       }
     }
 }
 
 class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
-                                                         listingResponseAdapter: ActorRef[Receptionist.Listing],
-                                                         context: ActorContext[AuctionScraperActor.Command],
-                                                         timers: TimerScheduler[AuctionScraperActor.Command]) {
+                                                         batchManagerRef: ActorRef[BatchManagerEntity.Command])
+                                                        (implicit timers: TimerScheduler[AuctionScraperActor.Command]) {
 
   import AuctionScraperActor._
 
-  private def lookupBatchManager(retries: Int = AuctionScraperActor.batchManagerMaxRetries): Behavior[Command] = {
-    context.self ! LookupBatchManager
-
-    Behaviors.withTimers[Command] { implicit timers =>
-      Behaviors.receivePartial {
-        // Querying the Receptionist for the BatchManager actor ref
-        case (context, LookupBatchManager) =>
-          context.system.receptionist ! Receptionist.Find(BatchManagerActor.BatchManagerServiceKey, listingResponseAdapter)
-          Behaviors.same
-
-        // Receiving the BatchManager actor ref from the Receptionist
-        case (context, ListingResponse(BatchManagerActor.BatchManagerServiceKey.Listing(listings))) if listings.nonEmpty =>
-          context.log.info("The Receptionist successfully provided the BatchManager ref")
-          idle(listings.head)
-
-        // Scheduling a new query for the Receptionist to obtain the BatchManager actor ref
-        case _ if AuctionScraperActor.batchManagerMaxRetries > 0 =>
-          timers.startSingleTimer(LookupBatchManager, 20.seconds)
-          lookupBatchManager(retries - 1)
-
-        // The Receptionist could not find the BatchManager actor ref in the allowed time range, FAIL
-        case (context, _) =>
-          context.log.error(s"The Receptionist could not find the BatchManager actor ref after $batchManagerMaxRetries retries, FAILING")
-          throw new IllegalStateException(s"The Receptionist could not find the BatchManager actor ref after $batchManagerMaxRetries retries")
-      }
-    }
-  }
-
-  private def idle(batchManagerRef: ActorRef[BatchManagerEntity.Command]): Behavior[Command] =
+  private def idle: Behavior[Command] =
     Behaviors.receivePartial {
-      case (context, ProcessBatchSpecification(batchSpecification, replyTo)) =>
-        replyTo ! StatusReply.success(StartProcessing(batchSpecification.batchSpecificationID))
+      case (context, Start) =>
+        context.self ! AskNextBatchSpecification
+        Behaviors.same
+
+      case (context, AskNextBatchSpecification) =>
+        context.pipeToSelf(batchManagerRef.ask(BatchManagerEntity.ProcessNextBatchSpecification("delcampe", _))(3.seconds,context.system.scheduler)) {
+          case Success(ProceedToBatchSpecification(batchSpecification)) =>
+            ProcessBatchSpecification(batchSpecification)
+
+          case _ =>
+            AskNextBatchSpecification
+        }
+        Behaviors.same
+
+      case (context, ProcessBatchSpecification(batchSpecification)) =>
         context.self ! ExtractListingPageUrls
-        processListingPage(batchManagerRef, batchSpecification, 1)
+        processListingPage(batchSpecification, 1)
 
       case (context, cmd) =>
         throw new IllegalStateException(s"Unexpected command $cmd received in behavior [idle]")
     }
 
-  private def processListingPage(batchManagerRef: ActorRef[BatchManagerEntity.Command],
-                                 batchSpecification: BatchSpecification,
+  private def processListingPage(batchSpecification: BatchSpecification,
                                  pageNumber: Int,
                                  firstAuctionUrl: Option[String] = None): Behavior[Command] =
     Behaviors.receivePartial {
-      case (context, LookupBatchManager) =>
-        throw new IllegalStateException(s"Unexpected command LookupBatchManager received in [processListingPage] behavior")
-
-      case (context, msg@ProcessBatchSpecification(_, replyTo)) =>
-        replyTo ! StatusReply.success(Busy(request = msg.batchSpecification.batchSpecificationID, busy = batchSpecification.batchSpecificationID))
-        Behaviors.same
+      case (context, cmd: ProcessBatchSpecification) =>
+        throw new IllegalStateException(s"Unexpected command $cmd received in state [processListingPage]")
 
       case (context, ExtractListingPageUrls) =>
         context.log.info(s"Scraping website URL ${batchSpecification.url} PAGE $pageNumber")
@@ -114,26 +90,25 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
           case Valid(jsoupDocument) =>
             validator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupDocument) match {
               case Valid(listingPageAuctionLinks@ListingPageAuctionLinks(_, auctionLinks)) if auctionLinks.nonEmpty =>
-                context.log.info(s"Listing page auction links successfully extracted")
                 context.self ! ExtractAuctions
-                processAuctions(batchManagerRef, batchSpecification, pageNumber, firstAuctionUrl, listingPageAuctionLinks)
+                processAuctions(batchSpecification, pageNumber, firstAuctionUrl, listingPageAuctionLinks)
 
               case Valid(ListingPageAuctionLinks(_, auctionLinks)) if auctionLinks.isEmpty =>
                 context.log.info(s"No auction links extracted from the listing page, going back to [idle] behavior")
-                idle(batchManagerRef)
+                idle
 
               case i =>
                 context.log.error(s"Error while fetching the listing page auction links ($i)")
-                idle(batchManagerRef)
+                idle
             }
 
           case Invalid(Chain(LastListingPageReached)) =>
             context.log.info(s"Last listing page reached, no more auction links to process")
-            idle(batchManagerRef)
+            idle
 
           case Invalid(i) =>
             context.log.error(s"No more auction links to process ($i)")
-            idle(batchManagerRef)
+            idle
         }
 
       case (context, cmd) =>
@@ -141,16 +116,14 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         Behaviors.same
     }
 
-  private def processAuctions(batchManagerRef: ActorRef[BatchManagerEntity.Command],
-                              batchSpecification: BatchSpecification,
+  private def processAuctions(batchSpecification: BatchSpecification,
                               pageNumber: Int,
                               firstAuctionUrl: Option[String],
                               listingPageAuctionLinks: ListingPageAuctionLinks,
                               auctions: List[Auction] = Nil): Behavior[Command] = {
     Behaviors.receivePartial {
-      case (context, msg@ProcessBatchSpecification(_, replyTo)) =>
-        replyTo ! StatusReply.success(Busy(request = msg.batchSpecification.batchSpecificationID, busy = batchSpecification.batchSpecificationID))
-        Behaviors.same
+      case (context, cmd: ProcessBatchSpecification) =>
+        throw new IllegalStateException(s"Unexpected command $cmd received in state [processListingPage]")
 
       case (context, ExtractAuctions) =>
         listingPageAuctionLinks.auctionLinks match {
@@ -162,7 +135,6 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                 context.log.info(s"Auction fetched successfully: ${auction.url}")
                 timers.startSingleTimer(ExtractAuctions, randomDurationMs())
                 processAuctions(
-                  batchManagerRef,
                   batchSpecification,
                   pageNumber,
                   firstAuctionUrl.orElse(Some(auctionLink.auctionUrl)),
@@ -173,7 +145,6 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                 context.log.error(s"Error while fetching auction $auctionLink, moving to the next auction ($e)")
                 timers.startSingleTimer(ExtractAuctions, randomDurationMs())
                 processAuctions(
-                  batchManagerRef,
                   batchSpecification,
                   pageNumber,
                   firstAuctionUrl.orElse(Some(auctionLink.auctionUrl)),
@@ -190,9 +161,14 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             // Move the the next listing page
             val newLastUrlVisited = if (pageNumber == 1) firstAuctionUrl else batchSpecification.lastUrlVisited
             timers.startSingleTimer(ExtractListingPageUrls, randomDurationMs())
-            processListingPage(batchManagerRef, batchSpecification, pageNumber + 1, firstAuctionUrl)
+            processListingPage(batchSpecification, pageNumber + 1, firstAuctionUrl)
         }
     }
+  }
+
+  private def backToIdle(implicit timers: TimerScheduler[Command]): Behavior[Command] = {
+    timers.startSingleTimer(AskNextBatchSpecification, 10.seconds)
+    idle
   }
 
   def getPage(url: String): Try[JsoupBrowser.JsoupDocument] = Try(jsoupBrowser.get(url))
