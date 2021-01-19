@@ -42,7 +42,8 @@ trait AuctionValidator {
       validateStartDate, validateEndDate,
       batchAuctionLink.thumbUrl.validNec,
       validateLargeImageUrl,
-      validateBids).mapN(Auction.apply)
+      validateBids,
+      Auction.NotChecked.validNec).mapN(Auction.apply)
   }
 
   def nextBatchId: UUID

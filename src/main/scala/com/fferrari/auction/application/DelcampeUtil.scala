@@ -145,11 +145,11 @@ object DelcampeUtil {
   }
 
   /**
-   * Produces a random milliseconds duration between the given minDuration and minDuration+2000
+   * Produces a random milliseconds duration between the given minDuration and minDuration+5000
    * @param minDurationMs The minimum duration in milliseconds to be returned
    * @return
    */
-  def randomDurationMs(minDurationMs: Int = 1000): FiniteDuration = (minDurationMs + rnd.nextInt(2000)).milliseconds
+  def randomDurationMs(minDurationMs: Int = 100): FiniteDuration = (minDurationMs + rnd.nextInt(500)).milliseconds
 
   /**
    * Extracts the label associated to a seller information (Location of the seller, Nickname of the seller, ...)

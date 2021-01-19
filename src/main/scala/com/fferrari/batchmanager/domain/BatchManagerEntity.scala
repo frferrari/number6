@@ -41,7 +41,6 @@ object BatchManagerEntity {
                                 batchSpecificationID: BatchSpecification.ID,
                                 auctions: List[Auction]) extends Event
   final case class BatchSpecificationAdded(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, name: String, description: String, url: String, provider: String, intervalSeconds: Long) extends Event
-  final case class NextBatchSpecificationProcessed(batchSpecification: BatchSpecification.ID, timestamp: Instant) extends Event
   final case class LastUrlVisitedUpdated(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, lastUrl: String) extends Event
   final case class BatchSpecificationPaused(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
 
@@ -127,7 +126,7 @@ object BatchManagerEntity {
           .headOption match {
             case Some(batchSpecification) =>
               Effect
-                .persist(NextBatchSpecificationProcessed(batchSpecification.batchSpecificationID, Clock.now))
+                .none
                 .thenReply(replyTo)((state: BatchManager) => AuctionScraperActor.ProceedToBatchSpecification(batchSpecification))
             case None =>
               Effect
@@ -156,7 +155,7 @@ object BatchManagerEntity {
         context.log.info(s"LastUrlVisitedUpdated to $lastUrlVisited for batch $batchSpecificationID")
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
-          val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited))
+          val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited), updatedAt = Clock.now)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (event)")
 
@@ -167,9 +166,6 @@ object BatchManagerEntity {
           val newBatchSpecification = batchSpecifications(idx).copy(paused = true)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
-
-      case NextBatchSpecificationProcessed(batchSpecificationID, timestamp) =>
-        this
 
       case _ =>
         throw new IllegalStateException(s"Unexpected event $event in state [ActiveBatchManager]")

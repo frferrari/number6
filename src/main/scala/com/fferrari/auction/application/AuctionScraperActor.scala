@@ -124,11 +124,9 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
       case (context, ExtractAuctions) =>
         listingPageAuctionLinks.auctionLinks match {
           case auctionLink :: remainingAuctionLinks =>
-            context.log.info(s"Scraping auction at URL: ${auctionLink.auctionUrl}")
-
             validator.fetchAuction(auctionLink, batchSpecification.batchSpecificationID) match {
               case Valid(auction) =>
-                context.log.info(s"Auction fetched successfully: ${auction.url}")
+                context.log.info(s"Auction scraped successfully: ${auction.url}")
                 timers.startSingleTimer(ExtractAuctions, randomDurationMs())
                 processAuctions(
                   batchSpecification,
@@ -138,7 +136,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                   auctions :+ auction)
 
               case Invalid(e) =>
-                context.log.error(s"Error while fetching auction $auctionLink, moving to the next auction ($e)")
+                context.log.error(s"Error while scraping auction $auctionLink, moving to the next auction ($e)")
                 timers.startSingleTimer(ExtractAuctions, randomDurationMs())
                 processAuctions(
                   batchSpecification,
@@ -154,13 +152,13 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             // Create a Batch with the extracted auctions
             batchManagerRef.ask(BatchManagerEntity.CreateBatch(batchSpecification.batchSpecificationID, auctions, _))(3.seconds, context.system.scheduler)
 
+            // Update the lastUrlVisited
             firstAuctionUrl
               .collect { case url if pageNumber == 1 =>
                 batchManagerRef ! BatchManagerEntity.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url)
               }
 
             // Move the the next listing page
-            val newLastUrlVisited = if (pageNumber == 1) firstAuctionUrl else batchSpecification.lastUrlVisited
             timers.startSingleTimer(ExtractListingPageUrls, randomDurationMs())
             processListingPage(batchSpecification, pageNumber + 1, firstAuctionUrl)
         }
