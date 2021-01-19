@@ -9,9 +9,10 @@ import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import com.fferrari.auction.domain.{Auction, Bid, Price}
 import com.fferrari.batch.application.BatchActor
 import com.fferrari.common.Clock
-import com.typesafe.config.{Config, ConfigFactory, ConfigValue}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
+import com.fferrari.batch.domain.BatchEntity._
 
 object BatchEntityTestConfig {
   val config: Config =
@@ -26,7 +27,7 @@ class BatchEntitySpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTest
   with BatchEntitySpecFixture {
 
   private val eventSourcedTestKit =
-    EventSourcedBehaviorTestKit[BatchEntity.Command, BatchEntity.Event, BatchEntity.Batch](
+    EventSourcedBehaviorTestKit[Command, Event, Batch](
       system,
       BatchActor(java.util.UUID.randomUUID()))
 
@@ -35,18 +36,18 @@ class BatchEntitySpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTest
     eventSourcedTestKit.clear()
   }
 
-  "Batch" must {
+  "Batch" should {
     "SUCCEED to Create when in [EmptyBatch] state" in {
       val batchID = UUID.randomUUID()
       val batchSpecificationID = UUID.randomUUID()
-      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchEntity.Create(batchID, batchSpecificationID, Nil, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](Create(batchID, batchSpecificationID, Nil, _))
       result.reply shouldBe StatusReply.Ack
-      result.stateOfType[BatchEntity.ActiveBatch].batchID shouldBe batchID
-      result.stateOfType[BatchEntity.ActiveBatch].batchSpecificationID shouldBe batchSpecificationID
-      result.stateOfType[BatchEntity.ActiveBatch].auctions shouldBe Nil
-      result.eventOfType[BatchEntity.Created].batchID shouldBe batchID
-      result.eventOfType[BatchEntity.Created].batchSpecificationID shouldBe batchSpecificationID
-      result.eventOfType[BatchEntity.Created].auctions shouldBe Nil
+      result.eventOfType[Created].batchID shouldBe batchID
+      result.eventOfType[Created].batchSpecificationID shouldBe batchSpecificationID
+      result.eventOfType[Created].auctions shouldBe Nil
+      result.stateOfType[ActiveBatch].batchID shouldBe batchID
+      result.stateOfType[ActiveBatch].batchSpecificationID shouldBe batchSpecificationID
+      result.stateOfType[ActiveBatch].auctions shouldBe Nil
     }
 
     "SUCCEED to MatchAuction when in [ActiveBatch] state" in {
@@ -54,14 +55,20 @@ class BatchEntitySpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTest
       val batchSpecificationID = UUID.randomUUID()
       val matchID = UUID.randomUUID()
       val auctions = List(auction1, auction2)
-      eventSourcedTestKit.runCommand[StatusReply[Done]](BatchEntity.Create(batchID, batchSpecificationID, auctions, _))
-      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](BatchEntity.MatchAuction(auctionID2, matchID, _))
+      eventSourcedTestKit.runCommand[StatusReply[Done]](Create(batchID, batchSpecificationID, auctions, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](MatchAuction(auctionID2, matchID, _))
       result.reply shouldBe StatusReply.Ack
-      result.stateOfType[BatchEntity.ActiveBatch].batchID shouldBe batchID
-      result.stateOfType[BatchEntity.ActiveBatch].batchSpecificationID shouldBe batchSpecificationID
-      result.stateOfType[BatchEntity.ActiveBatch].auctions should contain theSameElementsAs List(auction1, auction2.copy(matchID = Some(matchID)))
-      result.eventOfType[BatchEntity.AuctionMatched].auctionID shouldBe auctionID2
-      result.eventOfType[BatchEntity.AuctionMatched].matchID shouldBe matchID
+      result.eventOfType[AuctionMatched].auctionID shouldBe auctionID2
+      result.eventOfType[AuctionMatched].matchID shouldBe matchID
+      result.stateOfType[ActiveBatch].batchID shouldBe batchID
+      result.stateOfType[ActiveBatch].batchSpecificationID shouldBe batchSpecificationID
+      result.stateOfType[ActiveBatch].auctions should contain theSameElementsAs List(auction1, auction2.copy(matchID = Some(matchID)))
+    }
+
+    "SUCCEED to Stop when in [ActiveBatch] state" in {
+      val createResult = eventSourcedTestKit.runCommand[StatusReply[Done]](Create(UUID.randomUUID(), UUID.randomUUID(), Nil, _))
+      val stopResult = eventSourcedTestKit.runCommand[StatusReply[Done]](Stop)
+      stopResult.reply shouldBe StatusReply.Ack
     }
   }
 }

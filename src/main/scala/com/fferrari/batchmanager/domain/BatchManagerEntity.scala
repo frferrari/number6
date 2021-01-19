@@ -26,7 +26,7 @@ object BatchManagerEntity {
   final case class Create(replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class AddBatchSpecification(name: String, description: String, url: String, provider: String, intervalSeconds: Long, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class ProcessNextBatchSpecification(provider: String, replyTo: ActorRef[AuctionScraperActor.Command]) extends Command
-  final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String) extends Command
+  final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class PauseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
@@ -85,26 +85,24 @@ object BatchManagerEntity {
 
       case AddBatchSpecification(name, description, url, provider, intervalSeconds, replyTo) =>
         if (!batchSpecifications.exists(_.name == name)) {
-          val batchSpecificationID = UUID.randomUUID()
           Effect
-            .persist(BatchSpecificationAdded(batchSpecificationID, Clock.now, name, description, url, provider, intervalSeconds))
+            .persist(BatchSpecificationAdded(UUID.randomUUID(), Clock.now, name, description, url, provider, intervalSeconds))
             .thenReply(replyTo)(_ => StatusReply.Ack)
         } else
           Effect
             .reply(replyTo)(StatusReply.error(s"A batchSpecification with the name $name already exists"))
 
-      case UpdateLastUrlVisited(batchSpecificationID, lastUrlVisited) =>
+      case UpdateLastUrlVisited(batchSpecificationID, lastUrlVisited, replyTo) =>
         batchSpecifications.find(_.batchSpecificationID == batchSpecificationID) match {
           case Some(_) =>
             Effect
               .persist(LastUrlVisitedUpdated(batchSpecificationID, Clock.now, lastUrlVisited))
-              .thenNoReply()
+              .thenReply(replyTo)(_ => StatusReply.Ack)
 
           case None =>
+            context.log.error(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)")
             Effect
-              .none
-              .thenNoReply()
-            // (s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)"))
+              .reply(replyTo)(StatusReply.error(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (command)"))
         }
 
       case PauseBatchSpecification(batchSpecificationID, replyTo) =>
@@ -148,7 +146,7 @@ object BatchManagerEntity {
         this
 
       case BatchSpecificationAdded(batchSpecificationID, timestamp, name, description, url, provider, intervalSeconds) =>
-        val batchSpecification = BatchSpecification(batchSpecificationID, name, description, url, provider, intervalSeconds, Clock.now, false, None)
+        val batchSpecification = BatchSpecification(batchSpecificationID, name, description, url, provider, intervalSeconds, Clock.now.minusSeconds(intervalSeconds), false, None)
         copy(batchSpecifications = batchSpecifications :+ batchSpecification)
 
       case LastUrlVisitedUpdated(batchSpecificationID, timestamp, lastUrlVisited) =>

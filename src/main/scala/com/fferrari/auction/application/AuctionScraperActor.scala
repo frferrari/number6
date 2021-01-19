@@ -155,7 +155,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             // Update the lastUrlVisited
             firstAuctionUrl
               .collect { case url if pageNumber == 1 =>
-                batchManagerRef ! BatchManagerEntity.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url)
+                batchManagerRef.ask(BatchManagerEntity.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url, _))(3.seconds, context.system.scheduler)
               }
 
             // Move the the next listing page
