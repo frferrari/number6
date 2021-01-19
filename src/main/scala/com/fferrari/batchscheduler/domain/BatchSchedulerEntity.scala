@@ -144,18 +144,21 @@ object BatchSchedulerEntity {
 
       case WrappedProcessBatchSpecificationResult(Scraping(batchSpecificationID)) =>
         context.log.info(s"The scraper has started processing the batch specification $batchSpecificationID")
-        timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
+        nextBatchSpecificationIdx(batchSpecifications)
+        timers.startSingleTimer(ProcessBatchSpecification, 10.seconds)
         Effect
           .persist(NextBatchSpecificationProcessed(batchSpecificationID, Clock.now)) // TODO remove this useless event
           .thenNoReply()
 
       case WrappedProcessBatchSpecificationResult(Busy(requestBatchSpecificationID, busyBatchSpecificationID)) =>
         context.log.info(s"Could not process batch specification $requestBatchSpecificationID because the scraper is busy on $busyBatchSpecificationID")
-        timers.startSingleTimer(ProcessBatchSpecification, 30.seconds)
+        nextBatchSpecificationIdx(batchSpecifications)
+        timers.startSingleTimer(ProcessBatchSpecification, 10.seconds)
         Effect.none.thenNoReply()
 
       case WrappedProcessBatchSpecificationResult(Unknown(message)) =>
         context.log.error(s"Unexpected reply to processBatchProcessing request ($message)")
+        nextBatchSpecificationIdx(batchSpecifications)
         Effect.none.thenNoReply()
 
       case _ =>

@@ -171,7 +171,14 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
 
               case Invalid(e) =>
                 context.log.error(s"Error while fetching auction $auctionLink, moving to the next auction ($e)")
-                Behaviors.same
+                timers.startSingleTimer(ExtractAuctions, randomDurationMs())
+                processAuctions(
+                  batchManagerRef,
+                  batchSpecification,
+                  pageNumber,
+                  firstAuctionUrl.orElse(Some(auctionLink.auctionUrl)),
+                  listingPageAuctionLinks.copy(auctionLinks = remainingAuctionLinks),
+                  auctions)
             }
 
           case _ =>
