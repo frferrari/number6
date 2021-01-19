@@ -1,5 +1,6 @@
 package com.fferrari.actor
 
+/*
 import akka.Done
 import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.pattern.StatusReply
@@ -94,3 +95,4 @@ trait BatchSchedulerSpecFixture {
   val batchSpecification1 = BatchSpecification("spec1", "specification 1", "provider1", "http://provider.com/url1", 60)
   val batchSpecification2 = BatchSpecification("spec2", "specification 2", "provider1", "http://provider.com/url2", 60)
 }
+*/

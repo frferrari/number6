@@ -1,8 +1,11 @@
 package com.fferrari.validation
 
+/*
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.auction.application.{AuctionLinkNotFound, AuctionTypeNotFound, DelcampeValidator, LastListingPageReached, MaximumNumberOfAllowedPagesReached, ThumbnailLinkNotFound}
+import com.fferrari.auction.domain.Auction
+import com.fferrari.batchmanager.domain.BatchSpecification
 import com.fferrari.model.{Auction, BatchAuctionLink, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
@@ -163,7 +166,7 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
   }
 
   it should "extract the auction TYPE from a SOLD auction of BID type" in {
-    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.BID_TYPE_AUCTION)
+    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.AuctionBidType)
   }
   it should "produce AuctionTypeNotFound from some invalid HTML string" in {
     val htmlString = """<div class="price-info"><div><i></i></div></div>"""
@@ -185,3 +188,4 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
       Valid(false)
   }
 }
+*/

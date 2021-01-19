@@ -1,11 +1,11 @@
 package com.fferrari.validation
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application.{BidPriceNotFound, BidderNicknameNotFound, BidsContainerNotFound, DelcampeValidator, InvalidBidQuantityFormat, InvalidShortDateFormat, StartPriceNotFound}
-import com.fferrari.model.Auction
+import com.fferrari.auction.application._
+import com.fferrari.auction.domain.{Auction, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -34,7 +34,7 @@ class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matche
   }
 
   it should "extract the auction TYPE from a SOLD auction of FIXED PRICE type" in {
-    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.FIXED_PRICE_TYPE_AUCTION)
+    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.AuctionFixedType)
   }
 
   it should "extract the auction SOLD FLAG from a SOLD auction of FIXED PRICE type" in {
@@ -71,12 +71,12 @@ class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matche
 
   it should "extract the auction START DATE from a SOLD auction of FIXED PRICE type" in {
     delcampeValidator.validateStartDate(htmlDoc) shouldBe
-      Valid(LocalDateTime.of(2018, 8, 21, 15, 41, 0))
+      Valid(LocalDateTime.of(2018, 8, 21, 15, 41, 0).toInstant(ZoneOffset.UTC))
   }
 
   it should "extract the auction END DATE from a SOLD auction of FIXED PRICE type" in {
     delcampeValidator.validateEndDate(htmlDoc) shouldBe
-      Valid(Some(LocalDateTime.of(2020, 11, 17, 21, 24)))
+      Valid(Some(LocalDateTime.of(2020, 11, 17, 21, 24).toInstant(ZoneOffset.UTC)))
   }
 
   it should "extract the auction LARGE IMAGE URL from a SOLD auction of FIXED PRICE type" in {
@@ -88,7 +88,7 @@ class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matche
     delcampeValidator.validateBids(htmlDoc) shouldBe
       Valid(
         List(
-          Bid("private", Price(0.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 17, 21, 24, 24))
+          Bid("private", Price(0.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 17, 21, 24, 24).toInstant(ZoneOffset.UTC))
         )
       )
   }

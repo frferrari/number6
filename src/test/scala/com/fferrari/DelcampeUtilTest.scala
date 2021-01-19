@@ -1,11 +1,11 @@
 package com.fferrari
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application.{DelcampeUtil, InvalidBidQuantityFormat, InvalidDateFormat, InvalidPriceFormat, InvalidShortDateFormat}
-import com.fferrari.validation.InvalidPriceFormat
+import com.fferrari.auction.application._
+import com.fferrari.auction.domain.Price
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -13,12 +13,12 @@ import org.scalatest.matchers.should.Matchers
 class DelcampeUtilTest extends AnyFlatSpec with Matchers with OptionValues {
   it should "extract the correct date from a valid short date (PM time)" in {
     val result = DelcampeUtil.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 PM")
-    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 17, 6)))
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 17, 6).toInstant(ZoneOffset.UTC)))
   }
 
   it should "extract the correct date from a valid short date (AM time)" in {
     val result = DelcampeUtil.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 AM")
-    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 7, 17, 6)))
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 7, 17, 6).toInstant(ZoneOffset.UTC)))
   }
 
   it should "produce an InvalidShortDateFormat" in {
@@ -28,12 +28,12 @@ class DelcampeUtilTest extends AnyFlatSpec with Matchers with OptionValues {
 
   it should "extract the correct date from a valid date (PM time)" in {
     val result = DelcampeUtil.parseHtmlDate("Ended on<br>Sunday, November 15, 2020 at 7:32 PM")
-    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 32, 0)))
+    assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 32, 0).toInstant(ZoneOffset.UTC)))
   }
 
   it should "extract the correct date from a valid date (AM time)" in {
     val result = DelcampeUtil.parseHtmlDate("Ended on<br>Saturday, November 7, 2020 at 7:32 AM")
-    assert(result == Valid(LocalDateTime.of(2020, 11, 7, 7, 32, 0)))
+    assert(result == Valid(LocalDateTime.of(2020, 11, 7, 7, 32, 0).toInstant(ZoneOffset.UTC)))
   }
 
   it should "produce an InvalidDateFormat" in {

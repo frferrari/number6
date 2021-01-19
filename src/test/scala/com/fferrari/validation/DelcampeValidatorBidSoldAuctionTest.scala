@@ -1,10 +1,11 @@
 package com.fferrari.validation
 
-import java.time.LocalDateTime
+import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.auction.application.{BidDateNotFound, BidPriceNotFound, BidderNicknameNotFound, BidsContainerNotFound, DelcampeValidator, EndDateNotFound, FinalPriceNotFound, IdNotFound, LargeImageUrlNotFound, MissingBidsForClosedAuction, RequestForBidCountForOngoingAuction, RequestForBidsForOngoingAuction, SellerLocationNotFound, SellerNicknameNotFound, StartDateNotFound, StartPriceNotFound, TitleNotFound}
+import com.fferrari.auction.domain.{Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL._
@@ -113,7 +114,7 @@ class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with
 
   it should "extract the auction START DATE for a SOLD auction of BID type" in {
     delcampeValidator.validateStartDate(htmlDoc) shouldBe
-      Valid(LocalDateTime.of(2020, 11, 3, 5, 53, 0))
+      Valid(LocalDateTime.of(2020, 11, 3, 5, 53, 0).toInstant(ZoneOffset.UTC))
   }
   it should "produce StartDateNotFound from an invalid date in a valid HTML string" in {
     val htmlString = """<div id="collapse-description"><div class="description-info"><ul><li>Invalid Date</li></ul></div></div>"""
@@ -128,7 +129,7 @@ class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with
 
   it should "extract the auction END DATE for a SOLD auction of BID type" in {
     delcampeValidator.validateEndDate(htmlDoc) shouldBe
-      Valid(Some(LocalDateTime.of(2020, 11, 10, 19, 0)))
+      Valid(Some(LocalDateTime.of(2020, 11, 10, 19, 0).toInstant(ZoneOffset.UTC)))
   }
   it should "produce EndDateNotFound from an invalid date in a valid HTML string" in {
     val htmlString = """<div id="closed-sell" class="price-box"><div id="collapse-description"><div class="description-info"><ul></ul></div></div></div>"""
@@ -155,10 +156,10 @@ class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with
     delcampeValidator.validateBids(htmlDoc) shouldBe
       Valid(
         List(
-          Bid("chantal27", Price(2.30, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 18, 51, 41)),
-          Bid("bercat51", Price(2.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 13, 39, 43)),
-          Bid("basket2505", Price(2.10, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 10, 56, 30)),
-          Bid("bercat51", Price(2.00, "EUR"), 1, false, LocalDateTime.of(2020, 11, 4, 18, 20, 19))
+          Bid("chantal27", Price(2.30, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 18, 51, 41).toInstant(ZoneOffset.UTC)),
+          Bid("bercat51", Price(2.20, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 13, 39, 43).toInstant(ZoneOffset.UTC)),
+          Bid("basket2505", Price(2.10, "EUR"), 1, false, LocalDateTime.of(2020, 11, 10, 10, 56, 30).toInstant(ZoneOffset.UTC)),
+          Bid("bercat51", Price(2.00, "EUR"), 1, false, LocalDateTime.of(2020, 11, 4, 18, 20, 19).toInstant(ZoneOffset.UTC))
         )
       )
   }

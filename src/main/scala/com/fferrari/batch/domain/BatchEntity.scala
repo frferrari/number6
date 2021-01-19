@@ -91,7 +91,7 @@ object BatchEntity {
       case AuctionMatched(auctionID, timestamp, matchID) =>
         val idx = auctions.indexWhere(_.auctionID == auctionID)
         if (idx >= 0) {
-          val newAuction: Auction = auctions(idx).copy(matchID)
+          val newAuction: Auction = auctions(idx).copy(matchID = Some(matchID))
           copy(auctions = auctions.updated(idx, newAuction))
         } else throw new IllegalArgumentException(s"Trying to match an unknown auction ($auctionID)")
 
