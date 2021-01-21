@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/type.proto";
+
+import "google/type/money.proto";
+
+package com.fferrari.batch.domain;
+
+option java_package = "com.fferrari.batch.domain";
+option optimize_for = SPEED;
+
+message ProtobufBid {
+    string nickname = 1;
+    ProtobufPrice bidPrice = 2;
+    int32 quantity = 3;
+    bool isAutomaticBid = 4;
+    google.protobuf.Timestamp bidAt = 5;
+}
+
+message ProtobufPrice {
+    google.type.Money price = 1;
+    string currency = 2;
+}
+
+message ProtobufAuction {
+    string auctionID = 1;
+    enum auctionType {
+        BID_TYPE = 0;
+        FIX_PRICE_TYPE = 1;
+    }
+    string batchSpecificationID = 2;
+    string externalID = 3;
+    string matchID = 4;
+    string url = 5;
+    string title = 6;
+    bool isSold = 7;
+    string sellerNickname = 8;
+    string sellerLocation = 9;
+    ProtobufPrice startPrice = 10;
+    ProtobufPrice finalPrice = 11;
+    google.protobuf.Timestamp startDate = 12;
+    google.protobuf.Timestamp endDate = 13;
+    string thumbnailUrl = 14;
+    string largeImageUrl = 15;
+    repeated ProtobufBid bids = 16;
+    enum MatchStatus {
+        NOT_CHECKED = 0;
+        CHECKED_REJECTED = 1;
+        CHECKED_MATCHED = 2;
+    }
+}
+
+message ProtobufBatchEntityCreated {
+    string batchID = 1;
+    int32 timestamp = 2;
+    string batchSpecificationID = 3;
+    ProtobufAuction auctions = 4;
+}

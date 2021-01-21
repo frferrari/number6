@@ -9,7 +9,7 @@ import com.fferrari.batchmanager.domain.BatchSpecification
 final case class Auction(auctionID: Auction.ID,
                          auctionType: Auction.AuctionType,
                          batchSpecificationID: BatchSpecification.ID,
-                         externalId: String,
+                         externalID: String,
                          matchID: Option[UUID],
                          url: String,
                          title: String,
@@ -29,14 +29,13 @@ object Auction {
   type ID = UUID
 
   type AuctionType = Int
-  val AuctionBidType = 1
-  val AuctionFixedType = 2
+  val AuctionBidType = 0
+  val AuctionFixedPriceType = 1
 
   type MatchStatus = Int
-  val NotChecked = 1
-  val CheckedRejected = 2
-  val CheckedHasToBeMatched = 3
-  val CheckedMatched = 4
+  val NotChecked = 0
+  val CheckedRejected = 1
+  val CheckedMatched = 2
 
   def generateID: ID = UUID.randomUUID()
 }

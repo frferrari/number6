@@ -32,6 +32,7 @@ object BatchManagerEntity {
   final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
                                auctions: List[Auction],
                                replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case object Stop extends Command
 
   // Event
   sealed trait Event extends EntityEvent
@@ -131,6 +132,13 @@ object BatchManagerEntity {
                 .none
                 .thenNoReply()
           }
+
+      case Stop =>
+        scrapers.delcampeScraperRouter ! AuctionScraperActor.Stop
+        Effect
+          .none
+          .thenStop()
+          .thenNoReply()
 
       case _ =>
         Effect

@@ -25,11 +25,7 @@ object AuctionScraperActor {
   final case class ProcessBatchSpecification(batchSpecification: BatchSpecification) extends Command
   final case object ExtractListingPageUrls extends Command
   final case object ExtractAuctions extends Command
-
-  // Reply
-  sealed trait Reply
-  final case class Busy(request: BatchSpecification.ID, busy: BatchSpecification.ID) extends Reply
-  final case class StartProcessing(batchSpecificationID: BatchSpecification.ID) extends Reply
+  final case object Stop extends Command
 
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
@@ -69,6 +65,9 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         context.self ! ExtractListingPageUrls
         processListingPage(batchSpecification, 1)
 
+      case (context, Stop) =>
+        Behaviors.stopped
+
       case (context, cmd) =>
         throw new IllegalStateException(s"Unexpected command $cmd received in behavior [idle]")
     }
@@ -106,6 +105,9 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             context.log.error(s"No more auction links to process ($i)")
             backToIdle
         }
+
+      case (context, Stop) =>
+        Behaviors.stopped
 
       case (context, cmd) =>
         context.log.error(s"Unexpected command $cmd received while in [processListingPage] behavior")
@@ -162,6 +164,9 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             timers.startSingleTimer(ExtractListingPageUrls, randomDurationMs())
             processListingPage(batchSpecification, pageNumber + 1, firstAuctionUrl)
         }
+
+      case (context, Stop) =>
+        Behaviors.stopped
     }
   }
 

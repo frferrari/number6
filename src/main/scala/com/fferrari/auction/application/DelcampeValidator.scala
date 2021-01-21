@@ -136,7 +136,7 @@ class DelcampeValidator extends AuctionValidator {
 
     def auctionTypeFromClasses(classes: String): ValidationResult[AuctionType] =
       if (isBidType(classes)) Auction.AuctionBidType.validNec
-      else if (isFixedType(classes)) Auction.AuctionFixedType.validNec
+      else if (isFixedType(classes)) Auction.AuctionFixedPriceType.validNec
       else AuctionTypeNotFound.invalidNec
 
     (htmlDoc >?> attr("class")("div.price-info div i"))

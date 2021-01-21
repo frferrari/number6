@@ -34,7 +34,7 @@ class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matche
   }
 
   it should "extract the auction TYPE from a SOLD auction of FIXED PRICE type" in {
-    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.AuctionFixedType)
+    delcampeValidator.validateAuctionType(htmlDoc) shouldBe Valid(Auction.AuctionFixedPriceType)
   }
 
   it should "extract the auction SOLD FLAG from a SOLD auction of FIXED PRICE type" in {
