@@ -1,6 +1,6 @@
 package com.fferrari.auction.application
 
-import java.time.{Instant, LocalDateTime}
+import java.time.Instant
 import java.util.UUID
 
 import cats.data._
@@ -8,7 +8,6 @@ import cats.implicits._
 import com.fferrari.auction.application.DelcampeUtil.relativeToAbsoluteUrl
 import com.fferrari.auction.domain.Auction.AuctionType
 import com.fferrari.auction.domain._
-import com.fferrari.batchmanager.domain.BatchSpecification
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._

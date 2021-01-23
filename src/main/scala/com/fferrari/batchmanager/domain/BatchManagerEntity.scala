@@ -28,6 +28,9 @@ object BatchManagerEntity {
   final case class ProcessNextBatchSpecification(provider: String, replyTo: ActorRef[AuctionScraperActor.Command]) extends Command
   final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class PauseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class ReleaseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class PauseProvider(provider: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
+  final case class ReleaseProvider(provider: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
                                auctions: List[Auction],
@@ -44,6 +47,9 @@ object BatchManagerEntity {
   final case class BatchSpecificationAdded(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, name: String, description: String, url: String, provider: String, intervalSeconds: Long) extends Event
   final case class LastUrlVisitedUpdated(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, lastUrl: String) extends Event
   final case class BatchSpecificationPaused(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
+  final case class BatchSpecificationReleased(batchSpecificationID: BatchSpecification.ID, timestamp: Instant) extends Event
+  final case class ProviderPaused(provider: String, timestamp: Instant) extends Event
+  final case class ProviderReleased(provider: String, timestamp: Instant) extends Event
 
   type ID = UUID
 
@@ -116,6 +122,36 @@ object BatchManagerEntity {
             Effect.reply(replyTo)(StatusReply.error(s"Trying to pause an unknown bach specification ID $batchSpecificationID (command)"))
         }
 
+      case ReleaseBatchSpecification(batchSpecificationID, replyTo) =>
+        batchSpecifications.find(_.batchSpecificationID == batchSpecificationID) match {
+          case Some(_) =>
+            Effect
+              .persist(BatchSpecificationReleased(batchSpecificationID, Clock.now))
+              .thenReply(replyTo)(_ => StatusReply.Ack)
+          case None =>
+            Effect.reply(replyTo)(StatusReply.error(s"Trying to release an unknow batch specification ID $batchSpecificationID (command)"))
+        }
+
+      case PauseProvider(provider, replyTo) =>
+        batchSpecifications.find(_.provider == provider) match {
+          case Some(_) =>
+            Effect
+              .persist(ProviderPaused(provider, Clock.now))
+              .thenReply(replyTo)(_ => StatusReply.Ack)
+          case None =>
+            Effect.reply(replyTo)(StatusReply.error(s"Trying to pause the batch specifications for an unknown provider $provider (command)"))
+        }
+
+      case ReleaseProvider(provider, replyTo) =>
+        batchSpecifications.find(_.provider == provider) match {
+          case Some(_) =>
+            Effect
+              .persist(ProviderReleased(provider, Clock.now))
+              .thenReply(replyTo)(_ => StatusReply.Ack)
+          case None =>
+            Effect.reply(replyTo)(StatusReply.error(s"Trying to release the batch specifications for an unknown provider $provider (command)"))
+        }
+
       case ProcessNextBatchSpecification(provider, replyTo) =>
         context.log.info(s"Received ProcessNextBatchSpecification($provider)")
         batchSpecifications
@@ -123,15 +159,15 @@ object BatchManagerEntity {
           .filter(_.needsUpdate())
           .sortBy(_.updatedAt)
           .headOption match {
-            case Some(batchSpecification) =>
-              Effect
-                .none
-                .thenReply(replyTo)((state: BatchManager) => AuctionScraperActor.ProceedToBatchSpecification(batchSpecification))
-            case None =>
-              Effect
-                .none
-                .thenNoReply()
-          }
+          case Some(batchSpecification) =>
+            Effect
+              .none
+              .thenReply(replyTo)((state: BatchManager) => AuctionScraperActor.ProceedToBatchSpecification(batchSpecification))
+          case None =>
+            Effect
+              .none
+              .thenNoReply()
+        }
 
       case Stop =>
         scrapers.delcampeScraperRouter ! AuctionScraperActor.Stop
@@ -158,20 +194,38 @@ object BatchManagerEntity {
         copy(batchSpecifications = batchSpecifications :+ batchSpecification)
 
       case LastUrlVisitedUpdated(batchSpecificationID, timestamp, lastUrlVisited) =>
-        context.log.info(s"LastUrlVisitedUpdated to $lastUrlVisited for batch $batchSpecificationID")
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
+          context.log.info(s"LastUrlVisitedUpdated to $lastUrlVisited for batch $batchSpecificationID")
           val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited), updatedAt = Clock.now)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (event)")
 
       case BatchSpecificationPaused(batchSpecificationID, timestamp) =>
-        context.log.info(s"BatchSpecificationPaused for batch $batchSpecificationID")
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
+          context.log.info(s"BatchSpecificationPaused for batch $batchSpecificationID")
           val newBatchSpecification = batchSpecifications(idx).copy(paused = true)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
+
+      case BatchSpecificationReleased(batchSpecificationID, timestamp) =>
+        val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
+        if (idx >= 0) {
+          context.log.info(s"BatchSpecificationReleased for batch $batchSpecificationID")
+          val newBatchSpecification = batchSpecifications(idx).copy(paused = false)
+          copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
+        } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
+
+      case ProviderReleased(provider, timestamp) =>
+        val newBatchSpecifications =
+          batchSpecifications
+            .filter(bs => bs.provider == provider && bs.paused)
+            .foldLeft(batchSpecifications) { (acc, bs) =>
+              val idx = acc.indexWhere(_.batchSpecificationID == bs.batchSpecificationID)
+              acc.updated(idx, acc(idx).copy(paused = false))
+            }
+        copy(batchSpecifications = newBatchSpecifications)
 
       case _ =>
         throw new IllegalStateException(s"Unexpected event $event in state [ActiveBatchManager]")

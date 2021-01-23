@@ -36,7 +36,6 @@ object DelcampeUtil {
     }
   }
 
-
   /**
    * Normalizes the given currency to a list of known and handled currencies
    * @param currency A string containing currencies like €, $, £, CHF, SEK, ...
