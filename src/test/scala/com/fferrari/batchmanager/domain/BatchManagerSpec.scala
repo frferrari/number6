@@ -111,5 +111,69 @@ class BatchManagerSpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTes
       val updateResult = eventSourcedTestKit.runCommand[StatusReply[Done]](UpdateLastUrlVisited(UUID.randomUUID(), "last", _))
       updateResult.reply.isError shouldBe true
     }
+
+    "SUCCEED to PauseBatchSpecification then ReleaseBatchSpecification when in [ActiveBatchManager] state" in {
+      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[Done]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      addResult1.reply shouldBe StatusReply.Ack
+
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[Done]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
+      addResult2.reply shouldBe StatusReply.Ack
+
+      val batchSpecifications = addResult2.stateOfType[ActiveBatchManager].batchSpecifications
+      batchSpecifications.size shouldBe 2
+
+      val bs2: BatchSpecification = batchSpecifications.filter(_.name == "spec2").head
+
+      val pauseResult = eventSourcedTestKit.runCommand[StatusReply[Done]](PauseBatchSpecification(bs2.batchSpecificationID, _))
+      pauseResult.reply shouldBe StatusReply.Ack
+      pauseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs2.name).head.paused shouldBe true
+      pauseResult.eventOfType[BatchSpecificationPaused].batchSpecificationID shouldBe bs2.batchSpecificationID
+
+      val releaseResult = eventSourcedTestKit.runCommand[StatusReply[Done]](ReleaseBatchSpecification(bs2.batchSpecificationID, _))
+      releaseResult.reply shouldBe StatusReply.Ack
+      releaseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs2.name).head.paused shouldBe false
+      releaseResult.eventOfType[BatchSpecificationReleased].batchSpecificationID shouldBe bs2.batchSpecificationID
+    }
+
+    "SUCCEED to PauseProvider then ReleaseProvider when in [ActiveBatchManager] state" in {
+      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+
+      val (provider1, provider2) = ("provider1", "provider2")
+      val (spec1, spec2, spec3) = ("spec1", "spec2", "spec3")
+
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[Done]](AddBatchSpecification(spec1, "desc1", "url1", provider1, 60, _))
+      addResult1.reply shouldBe StatusReply.Ack
+
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[Done]](AddBatchSpecification(spec2, "desc2", "url2", provider1, 30, _))
+      addResult2.reply shouldBe StatusReply.Ack
+
+      val addResult3 = eventSourcedTestKit.runCommand[StatusReply[Done]](AddBatchSpecification(spec3, "desc3", "url3", provider2, 30, _))
+      addResult3.reply shouldBe StatusReply.Ack
+
+      val batchSpecifications = addResult3.stateOfType[ActiveBatchManager].batchSpecifications
+      batchSpecifications.size shouldBe 3
+
+      val bs1: BatchSpecification = batchSpecifications.filter(_.name == spec1).head
+      val bs2: BatchSpecification = batchSpecifications.filter(_.name == spec2).head
+      val bs3: BatchSpecification = batchSpecifications.filter(_.name == spec3).head
+
+      val providerToPause = provider1
+
+      val pauseResult = eventSourcedTestKit.runCommand[StatusReply[Done]](PauseProvider(providerToPause, _))
+      pauseResult.reply shouldBe StatusReply.Ack
+      pauseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs1.name).head.paused shouldBe true
+      pauseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs2.name).head.paused shouldBe true
+      pauseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs3.name).head.paused shouldBe false
+      pauseResult.eventOfType[ProviderPaused].provider shouldBe providerToPause
+
+      val releaseResult = eventSourcedTestKit.runCommand[StatusReply[Done]](ReleaseProvider(providerToPause, _))
+      releaseResult.reply shouldBe StatusReply.Ack
+      releaseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs1.name).head.paused shouldBe false
+      releaseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs2.name).head.paused shouldBe false
+      releaseResult.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == bs3.name).head.paused shouldBe false
+      releaseResult.eventOfType[ProviderReleased].provider shouldBe providerToPause
+    }
   }
 }

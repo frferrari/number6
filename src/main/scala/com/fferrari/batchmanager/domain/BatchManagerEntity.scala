@@ -217,6 +217,16 @@ object BatchManagerEntity {
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to pause an unknown bach specification ID $batchSpecificationID (event)")
 
+      case ProviderPaused(provider, timestamp) =>
+        val newBatchSpecifications =
+          batchSpecifications
+            .filter(bs => bs.provider == provider && !bs.paused)
+            .foldLeft(batchSpecifications) { (acc, bs) =>
+              val idx = acc.indexWhere(_.batchSpecificationID == bs.batchSpecificationID)
+              acc.updated(idx, acc(idx).copy(paused = true))
+            }
+        copy(batchSpecifications = newBatchSpecifications)
+
       case ProviderReleased(provider, timestamp) =>
         val newBatchSpecifications =
           batchSpecifications
