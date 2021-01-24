@@ -1,12 +1,13 @@
 package com.fferrari.validation
 
-/*
+import java.util.UUID
+
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.auction.application.{AuctionLinkNotFound, AuctionTypeNotFound, DelcampeValidator, LastListingPageReached, MaximumNumberOfAllowedPagesReached, ThumbnailLinkNotFound}
-import com.fferrari.auction.domain.Auction
+import com.fferrari.auction.domain.{Auction, AuctionLink, ListingPageAuctionLinks}
 import com.fferrari.batchmanager.domain.BatchSpecification
-import com.fferrari.model.{Auction, BatchAuctionLink, BatchSpecification}
+import com.fferrari.common.Clock
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser.JsoupDocument
 import org.scalatest.flatspec.AnyFlatSpec
@@ -52,13 +53,16 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         |   </div>
         | </div>
         |</div>""".stripMargin
-    val batchSpecification = BatchSpecification("example", "an example", "provider", "http://www.example.com", 60)
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionLinks) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider", 60, Clock.now, false, None)
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Valid(
-        List(
-          BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
-          BatchAuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
-          BatchAuctionLink("http://www.example.com/auction3", "http://www.example.com/img_thumb/3.jpg")
+        ListingPageAuctionLinks(
+          batchSpecification.url,
+          List(
+            AuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+            AuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
+            AuctionLink("http://www.example.com/auction3", "http://www.example.com/img_thumb/3.jpg")
+          )
         )
       )
   }
@@ -93,12 +97,15 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         |   </div>
         | </div>
         |</div>""".stripMargin
-    val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, Some("http://www.example.com/auction3"))
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)).map(_.auctionLinks) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, Some("http://www.example.com/auction3"))
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Valid(
-        List(
-          BatchAuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
-          BatchAuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
+        ListingPageAuctionLinks(
+          batchSpecification.url,
+          List(
+            AuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
+            AuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
+          )
         )
       )
   }
@@ -125,8 +132,8 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
         |   </div>
         | </div>
         |</div>""".stripMargin
-    val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, None)
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification)(jsoupBrowser.parseString(htmlString)) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(AuctionLinkNotFound, ThumbnailLinkNotFound))
   }
 
@@ -142,8 +149,8 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
 
     def getPage(url: String): Try[JsoupDocument] = Try(expectedDocument)
 
-    val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, None)
-    delcampeValidator.fetchListingPage(batchSpecification, getPage, 1) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider", 60, Clock.now, false, None)
+    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
       Valid(expectedDocument)
   }
   it should "produce MaximumNumberOfAllowedPagesReached when the allowed limit of pages to read is reached" in {
@@ -151,8 +158,8 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
 
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
 
-    val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, None)
-    delcampeValidator.fetchListingPage(batchSpecification, getPage, 1) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
+    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
       Invalid(Chain(MaximumNumberOfAllowedPagesReached))
   }
   it should "produce LastListingPageReached when the last listing page is reached" in {
@@ -160,8 +167,8 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
 
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
 
-    val batchSpecification = BatchSpecification("id1", "example", "an example", "provider", "http://www.example.com", 60, false, 0L, None)
-    delcampeValidator.fetchListingPage(batchSpecification, getPage, 1) shouldBe
+    val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
+    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
       Invalid(Chain(LastListingPageReached))
   }
 
@@ -188,4 +195,3 @@ class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValid
       Valid(false)
   }
 }
-*/
