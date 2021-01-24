@@ -1,10 +1,9 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
 import java.util.UUID
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application.{AuctionLinkNotFound, AuctionTypeNotFound, DelcampeValidator, LastListingPageReached, MaximumNumberOfAllowedPagesReached, ThumbnailLinkNotFound}
 import com.fferrari.auction.domain.{Auction, AuctionLink, ListingPageAuctionLinks}
 import com.fferrari.batchmanager.domain.BatchSpecification
 import com.fferrari.common.Clock
@@ -15,7 +14,10 @@ import org.scalatest.matchers.should.Matchers
 
 import scala.util.Try
 
-class DelcampeValidatorTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
+class DelcampeValidatorSpec
+  extends AnyFlatSpec
+    with Matchers
+    with DelcampeValidatorSpecFixtures {
 
   val delcampeValidator: DelcampeValidator = new DelcampeValidator
 

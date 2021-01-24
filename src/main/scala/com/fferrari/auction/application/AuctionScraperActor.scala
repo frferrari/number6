@@ -29,7 +29,8 @@ object AuctionScraperActor {
 
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
-  def apply[V <: AuctionValidator](validator: () => V, batchManagerRef: ActorRef[BatchManagerEntity.Command]): Behavior[Command] =
+  def apply[V <: AuctionValidator](validator: () => V,
+                                   batchManagerRef: ActorRef[BatchManagerEntity.Command]): Behavior[Command] =
     Behaviors.setup { context =>
       Behaviors.withTimers { implicit timers =>
         context.log.info("Starting")

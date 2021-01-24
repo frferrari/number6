@@ -1,10 +1,9 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
 import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application.{BidDateNotFound, BidPriceNotFound, BidderNicknameNotFound, BidsContainerNotFound, DelcampeValidator, EndDateNotFound, FinalPriceNotFound, IdNotFound, LargeImageUrlNotFound, MissingBidsForClosedAuction, RequestForBidCountForOngoingAuction, RequestForBidsForOngoingAuction, SellerLocationNotFound, SellerNicknameNotFound, StartDateNotFound, StartPriceNotFound, TitleNotFound}
 import com.fferrari.auction.domain.{Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
@@ -13,7 +12,10 @@ import net.ruippeixotog.scalascraper.model.Element
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DelcampeValidatorBidSoldAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
+class DelcampeValidatorBidSoldAuctionSpec
+  extends AnyFlatSpec
+    with Matchers
+    with DelcampeValidatorSpecFixtures {
 
   val delcampeValidator: DelcampeValidator = new DelcampeValidator
 

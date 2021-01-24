@@ -1,16 +1,18 @@
-package com.fferrari
+package com.fferrari.auction.application
 
 import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application._
 import com.fferrari.auction.domain.Price
 import org.scalatest.OptionValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DelcampeUtilTest extends AnyFlatSpec with Matchers with OptionValues {
+class DelcampeUtilSpec
+  extends AnyFlatSpec
+    with Matchers
+    with OptionValues {
   it should "extract the correct date from a valid short date (PM time)" in {
     val result = DelcampeUtil.parseHtmlShortDate("Nov 15, 2020 at 7:17:06 PM")
     assert(result == Valid(LocalDateTime.of(2020, 11, 15, 19, 17, 6).toInstant(ZoneOffset.UTC)))

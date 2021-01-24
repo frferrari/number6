@@ -1,16 +1,18 @@
-package com.fferrari.validation
+package com.fferrari.auction.application
 
 import java.time.{LocalDateTime, ZoneOffset}
 
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
-import com.fferrari.auction.application._
 import com.fferrari.auction.domain.{Auction, Bid, Price}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class DelcampeValidatorFixedPriceSoldAuctionTest extends AnyFlatSpec with Matchers with DelcampeValidatorTestFixtures {
+class DelcampeValidatorFixedPriceSoldAuctionSpec
+  extends AnyFlatSpec
+    with Matchers
+    with DelcampeValidatorSpecFixtures {
 
   val delcampeValidator: DelcampeValidator = new DelcampeValidator
 
