@@ -25,7 +25,7 @@ object BatchManagerEntity {
   sealed trait Command extends EntityCommand
   final case class Create(replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class AddBatchSpecification(name: String, description: String, url: String, provider: String, intervalSeconds: Long, replyTo: ActorRef[StatusReply[Done]]) extends Command
-  final case class ProcessNextBatchSpecification(provider: String, replyTo: ActorRef[AuctionScraperActor.Command]) extends Command
+  final case class ProvideNextBatchSpecification(provider: String, replyTo: ActorRef[AuctionScraperActor.Command]) extends Command
   final case class UpdateLastUrlVisited(batchSpecificationID: BatchSpecification.ID, lastUrlVisited: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class PauseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
   final case class ReleaseBatchSpecification(batchSpecificationID: BatchSpecification.ID, replyTo: ActorRef[StatusReply[Done]]) extends Command
@@ -152,7 +152,7 @@ object BatchManagerEntity {
             Effect.reply(replyTo)(StatusReply.error(s"Trying to release the batch specifications for an unknown provider $provider (command)"))
         }
 
-      case ProcessNextBatchSpecification(provider, replyTo) =>
+      case ProvideNextBatchSpecification(provider, replyTo) =>
         context.log.info(s"Received ProcessNextBatchSpecification($provider)")
         batchSpecifications
           .filter(_.provider == provider)
@@ -248,5 +248,6 @@ object BatchManagerEntity {
       EmptyBatchManager,
       (state, cmd) => state.applyCommand(cmd, scrapers: Scrapers),
       (state, event) => state.applyEvent(event))
+      .withTagger(_ => Set("batch"))
   }
 }

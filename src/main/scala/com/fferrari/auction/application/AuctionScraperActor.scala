@@ -53,7 +53,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         Behaviors.same
 
       case (context, AskNextBatchSpecification) =>
-        context.pipeToSelf(batchManagerRef.ask(BatchManagerEntity.ProcessNextBatchSpecification("delcampe", _))(3.seconds,context.system.scheduler)) {
+        context.pipeToSelf(batchManagerRef.ask(BatchManagerEntity.ProvideNextBatchSpecification("delcampe", _))(3.seconds,context.system.scheduler)) {
           case Success(ProceedToBatchSpecification(batchSpecification)) =>
             ProcessBatchSpecification(batchSpecification)
 
@@ -81,10 +81,10 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         throw new IllegalStateException(s"Unexpected command $cmd received in state [processListingPage]")
 
       case (context, ExtractListingPageUrls) =>
-        context.log.info(s"Scraping website URL ${batchSpecification.url} PAGE $pageNumber")
-        validator.fetchListingPage(batchSpecification.url, getPage, pageNumber) match {
+        context.log.info(s"Scraping website URL ${batchSpecification.listingPageUrl} PAGE $pageNumber")
+        validator.fetchListingPage(batchSpecification.listingPageUrl, getPage, pageNumber) match {
           case Valid(jsoupDocument) =>
-            validator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupDocument) match {
+            validator.fetchListingPageAuctionLinks(batchSpecification.listingPageUrl, batchSpecification.lastUrlVisited)(jsoupDocument) match {
               case Valid(listingPageAuctionLinks@ListingPageAuctionLinks(_, auctionLinks)) if auctionLinks.nonEmpty =>
                 context.self ! ExtractAuctions
                 processAuctions(batchSpecification, pageNumber, firstAuctionUrl, listingPageAuctionLinks)

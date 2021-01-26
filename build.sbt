@@ -24,6 +24,7 @@ libraryDependencies ++= Seq(
 
   "com.lightbend.akka" %% "akka-persistence-jdbc" % "4.0.0",
   "com.typesafe.akka" %% "akka-persistence-query" % AkkaVersion,
+  "com.lightbend.akka" %% "akka-projection-core" % "1.1.0",
   "com.typesafe.slick" %% "slick" % SlickVersion,
   "com.typesafe.slick" %% "slick-hikaricp" % SlickVersion,
 

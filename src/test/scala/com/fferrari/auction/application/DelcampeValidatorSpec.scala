@@ -56,10 +56,10 @@ class DelcampeValidatorSpec
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider", 60, Clock.now, false, None)
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.listingPageUrl, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Valid(
         ListingPageAuctionLinks(
-          batchSpecification.url,
+          batchSpecification.listingPageUrl,
           List(
             AuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
             AuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg"),
@@ -100,10 +100,10 @@ class DelcampeValidatorSpec
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, Some("http://www.example.com/auction3"))
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.listingPageUrl, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Valid(
         ListingPageAuctionLinks(
-          batchSpecification.url,
+          batchSpecification.listingPageUrl,
           List(
             AuctionLink("http://www.example.com/auction1", "http://www.example.com/img_thumb/1.jpg"),
             AuctionLink("http://www.example.com/auction2", "http://www.example.com/img_thumb/2.jpg")
@@ -135,7 +135,7 @@ class DelcampeValidatorSpec
         | </div>
         |</div>""".stripMargin
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
-    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.url, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
+    delcampeValidator.fetchListingPageAuctionLinks(batchSpecification.listingPageUrl, batchSpecification.lastUrlVisited)(jsoupBrowser.parseString(htmlString)) shouldBe
       Invalid(Chain(AuctionLinkNotFound, ThumbnailLinkNotFound))
   }
 
@@ -152,7 +152,7 @@ class DelcampeValidatorSpec
     def getPage(url: String): Try[JsoupDocument] = Try(expectedDocument)
 
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider", 60, Clock.now, false, None)
-    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
+    delcampeValidator.fetchListingPage(batchSpecification.listingPageUrl, getPage, 1) shouldBe
       Valid(expectedDocument)
   }
   it should "produce MaximumNumberOfAllowedPagesReached when the allowed limit of pages to read is reached" in {
@@ -161,7 +161,7 @@ class DelcampeValidatorSpec
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
 
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
-    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
+    delcampeValidator.fetchListingPage(batchSpecification.listingPageUrl, getPage, 1) shouldBe
       Invalid(Chain(MaximumNumberOfAllowedPagesReached))
   }
   it should "produce LastListingPageReached when the last listing page is reached" in {
@@ -170,7 +170,7 @@ class DelcampeValidatorSpec
     def getPage(url: String): Try[JsoupDocument] = Try(jsoupBrowser.parseString(htmlString))
 
     val batchSpecification = BatchSpecification(UUID.randomUUID(), "spec1", "desc1", "http://www.example.com", "provider1", 60, Clock.now, false, None)
-    delcampeValidator.fetchListingPage(batchSpecification.url, getPage, 1) shouldBe
+    delcampeValidator.fetchListingPage(batchSpecification.listingPageUrl, getPage, 1) shouldBe
       Invalid(Chain(LastListingPageReached))
   }
 
