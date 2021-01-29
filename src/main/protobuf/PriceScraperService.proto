@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.fferrari.pricescraper.service";
+
+package service;
+
+service PriceScraperService {
+  rpc AddBatchSpecification (AddBatchSpecificationRequest) returns (BatchSpecification) {}
+}
+
+message AddBatchSpecificationRequest {
+  string name = 1;
+  string description = 2;
+  string url = 3;
+  string provider = 4;
+  int32 intervalSeconds = 5;
+}
+
+message BatchSpecification {
+  string batchSpecificationId = 1;
+}
