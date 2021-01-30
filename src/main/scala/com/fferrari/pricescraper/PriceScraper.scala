@@ -39,8 +39,8 @@ class PriceScraper(context: ActorContext[Command]) extends AbstractBehavior[Comm
   val batchManager: ActorRef[BatchManagerEntity.Command] = context.spawn(BatchManagerActor.apply, BatchManagerActor.actorName)
   batchManager.ask(BatchManagerEntity.Create)(askTimeout, context.system.scheduler)
 
-  val grpcInterface = system.settings.config.getString("shopping-cart-service.grpc.interface")
-  val grpcPort = system.settings.config.getInt("shopping-cart-service.grpc.port")
+  val grpcInterface = system.settings.config.getString("price-scraper-service.grpc.interface")
+  val grpcPort = system.settings.config.getInt("price-scraper-service.grpc.port")
   val grpcService = new PriceScraperServiceImpl(batchManager, context)
   PriceScraperServer.start(grpcInterface, grpcPort, system, grpcService)
 

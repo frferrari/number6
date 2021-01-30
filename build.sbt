@@ -6,10 +6,14 @@ scalaVersion := "2.13.4"
 showTiming := true
 logBuffered in Test := false
 
-lazy val akkaVersion = "2.6.10"
-lazy val akkaHttpVersion = "10.2.2"
-lazy val akkaManagementVersion = "1.0.9"
-lazy val slickVersion = "3.3.2"
+val akkaVersion = "2.6.10"
+val akkaHttpVersion = "10.2.1"
+val akkaManagementVersion = "1.0.9"
+val akkaPersistenceCassandraVersion = "1.0.4"
+val alpakkaKafkaVersion = "2.0.5"
+val akkaProjectionVersion = "1.0.0"
+
+val slickVersion = "3.3.2"
 
 val akkaActorTyped = "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
 val akkaActorTestkitTyped = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test
@@ -24,14 +28,16 @@ val akkaPersistenceTyped = "com.typesafe.akka" %% "akka-persistence-typed" % akk
 val akkaPersistenceTestkit = "com.typesafe.akka" %% "akka-persistence-testkit" % akkaVersion % Test
 val akkaSerializationJackson = "com.typesafe.akka" %% "akka-serialization-jackson" % akkaVersion
 val akkaStream = "com.typesafe.akka" %% "akka-stream" % akkaVersion
+val akkaHttp2Support = "com.typesafe.akka" %% "akka-http2-support" % akkaHttpVersion
 val akkaHttp = "com.typesafe.akka" %% "akka-http" % akkaHttpVersion
 val akkaHttpSprayJson = "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion
-val akkaPersistenceJdbc = "com.lightbend.akka" %% "akka-persistence-jdbc" % "5.0.0"
+val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandra" % akkaPersistenceCassandraVersion
 val akkaPersistenceQuery = "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion
 val akkaProjectionCore = "com.lightbend.akka" %% "akka-projection-core" % "1.1.0"
-val akkaProjectionEventSourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % "1.1.0"
-val akkaProjectionJdbc = "com.lightbend.akka" %% "akka-projection-jdbc" % "1.1.0"
-val akkaGrpc = ""
+val akkaProjectionEventSourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % akkaProjectionVersion
+val akkaProjectionCassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % akkaProjectionVersion
+val akkaStreamKafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaKafkaVersion
+
 val slick = "com.typesafe.slick" %% "slick" % slickVersion
 val slickHirakiCp = "com.typesafe.slick" %% "slick-hikaricp" % slickVersion
 val postgresql = "org.postgresql" % "postgresql" % "42.2.5"
@@ -56,19 +62,20 @@ libraryDependencies ++= Seq(
   akkaDiscovery,
 
   akkaPersistenceTyped,
-  akkaPersistenceJdbc,
+  akkaPersistenceCassandra,
   akkaPersistenceQuery,
   akkaPersistenceTestkit,
 
   akkaSerializationJackson,
 
   akkaStream,
+  akkaHttp2Support,
   akkaHttp,
   akkaHttpSprayJson,
 
   akkaProjectionCore,
   akkaProjectionEventSourced,
-  akkaProjectionJdbc,
+  akkaProjectionCassandra,
 
   slick,
   slickHirakiCp,
