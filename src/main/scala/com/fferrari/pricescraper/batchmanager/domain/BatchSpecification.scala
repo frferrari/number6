@@ -19,7 +19,7 @@ case class BatchSpecification(batchSpecificationID: BatchSpecification.ID,
                               endYear: Option[Int] = None,
                               conditionId: Option[UUID] = None) {
   def needsUpdate(now: java.time.Instant = java.time.Instant.now()): Boolean =
-    now.isBefore(updatedAt.plusSeconds(intervalSeconds)) && !paused
+    /*updatedAt.plusSeconds(intervalSeconds).isAfter(now) &&*/ !paused
 }
 
 object BatchSpecification {

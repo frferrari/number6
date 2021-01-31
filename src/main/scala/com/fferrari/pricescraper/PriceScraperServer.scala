@@ -4,11 +4,12 @@ import akka.actor.typed.ActorSystem
 import akka.grpc.scaladsl.{ServerReflection, ServiceHandler}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
-import com.fferrari.pricescraper.service.{PriceScraperService, PriceScraperServiceHandler}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
+
+import com.fferrari.pricescraper.proto.{PriceScraperService, PriceScraperServiceHandler}
 
 object PriceScraperServer {
 

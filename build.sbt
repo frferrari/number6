@@ -55,9 +55,9 @@ libraryDependencies ++= Seq(
   akkaClusterTyped,
   akkaClusterShardingTyped,
 
-  akkaManagement,
-  akkaManagementClusterHttp,
-  akkaManagementClusterBootstrap,
+  // akkaManagement,
+  // akkaManagementClusterHttp,
+  // akkaManagementClusterBootstrap,
 
   akkaDiscovery,
 

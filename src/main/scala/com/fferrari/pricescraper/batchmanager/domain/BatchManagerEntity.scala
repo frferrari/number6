@@ -173,17 +173,20 @@ object BatchManagerEntity {
         }
 
       case ProvideNextBatchSpecification(provider, replyTo) =>
-        context.log.info(s"Received ProcessNextBatchSpecification($provider)")
+        context.log.info(s"Received ProvideNextBatchSpecification($provider)")
+        println(s"BatchSpecifications $batchSpecifications")
         batchSpecifications
           .filter(_.provider == provider)
           .filter(_.needsUpdate())
           .sortBy(_.updatedAt)
           .headOption match {
           case Some(batchSpecification) =>
+            println(s"ProceedToBatchSpecification $batchSpecification ...")
             Effect
               .none
               .thenReply(replyTo)((state: BatchManager) => AuctionScraperActor.ProceedToBatchSpecification(batchSpecification))
           case None =>
+            println("Nothing to proceed to ...")
             Effect
               .none
               .thenNoReply()
