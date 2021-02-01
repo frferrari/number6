@@ -153,7 +153,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             context.log.info("No more auction links to process, creating a Batch, then moving to the next listing page")
 
             // Create a Batch with the extracted auctions
-            batchManagerRef.ask(BatchManagerEntity.CreateBatch(batchSpecification.batchSpecificationID, auctions, _))(3.seconds, context.system.scheduler)
+            batchManagerRef.ask(BatchManagerEntity.CreateBatch(batchSpecification, auctions, _))(3.seconds, context.system.scheduler)
 
             // Update the lastUrlVisited
             firstAuctionUrl

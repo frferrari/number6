@@ -19,7 +19,7 @@ object BatchEntity {
   sealed trait Command extends EntityCommand
 
   final case class Create(batchID: BatchEntity.ID,
-                          batchSpecificationID: BatchSpecification.ID,
+                          batchSpecification: BatchSpecification,
                           auctions: List[Auction],
                           replyTo: ActorRef[StatusReply[Done]]) extends Command
 
@@ -34,7 +34,7 @@ object BatchEntity {
 
   final case class Created(batchID: BatchEntity.ID,
                            timestamp: Instant,
-                           batchSpecificationID: BatchSpecification.ID,
+                           batchSpecification: BatchSpecification,
                            auctions: List[Auction]) extends Event
 
   final case class AuctionMatched(auctionID: Auction.ID,
@@ -57,9 +57,9 @@ object BatchEntity {
 
   case object EmptyBatch extends Batch {
     override def applyCommand(cmd: Command): ReplyEffect = cmd match {
-      case Create(batchID, batchSpecificationID, auctions, replyTo) =>
+      case Create(batchID, batchSpecification, auctions, replyTo) =>
         Effect
-          .persist(Created(batchID, Clock.now, batchSpecificationID, auctions))
+          .persist(Created(batchID, Clock.now, batchSpecification, auctions))
           .thenReply(replyTo)(_ => StatusReply.Ack)
 
       case _ =>
@@ -69,20 +69,29 @@ object BatchEntity {
     }
 
     override def applyEvent(event: Event): Batch = event match {
-      case Created(batchID, timestamp, batchSpecificationID, auctions) =>
-        ActiveBatch(batchID, batchSpecificationID, auctions)
+      case Created(batchID, timestamp, batchSpecification, auctions) =>
+        ActiveBatch(batchID, timestamp, batchSpecification, auctions)
 
       case _ =>
         throw new IllegalStateException(s"Unexpected event $event in state [EmptyBatch]")
     }
   }
 
-  case class ActiveBatch(batchID: BatchEntity.ID, batchSpecificationID: BatchSpecification.ID, auctions: List[Auction]) extends Batch {
+  case class ActiveBatch(batchID: BatchEntity.ID,
+                         timestamp: Instant,
+                         batchSpecification: BatchSpecification,
+                         auctions: List[Auction]) extends Batch {
     override def applyCommand(cmd: Command): ReplyEffect = cmd match {
       case MatchAuction(auctionID, matchID, replyTo) =>
-        Effect
-          .persist(AuctionMatched(auctionID, Clock.now, matchID))
-          .thenReply(replyTo)(_ => StatusReply.Ack)
+        if (auctions.indexWhere(_.auctionID == auctionID) >= 0) {
+          Effect
+            .persist(AuctionMatched(auctionID, Clock.now, matchID))
+            .thenReply(replyTo)(_ => StatusReply.Ack)
+        } else {
+          Effect
+            .none
+            .thenReply(replyTo)(_ => StatusReply.error(s"Unknown auctionId ${auctionID}, MatchAuction command rejected"))
+        }
 
       case Stop(replyTo) =>
         Effect
@@ -98,10 +107,8 @@ object BatchEntity {
     override def applyEvent(event: Event): Batch = event match {
       case AuctionMatched(auctionID, timestamp, matchID) =>
         val idx = auctions.indexWhere(_.auctionID == auctionID)
-        if (idx >= 0) {
-          val newAuction: Auction = auctions(idx).copy(matchID = Some(matchID))
-          copy(auctions = auctions.updated(idx, newAuction))
-        } else throw new IllegalArgumentException(s"Trying to match an unknown auction ($auctionID)")
+        val newAuction: Auction = auctions(idx).copy(matchID = Some(matchID))
+        copy(auctions = auctions.updated(idx, newAuction))
 
       case Stopped(timestamp) =>
         InactiveBatch

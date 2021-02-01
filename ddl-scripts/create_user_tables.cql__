@@ -1,6 +1,62 @@
 USE pricescraperservice;
-CREATE TABLE IF NOT EXISTS item_popularity (
-  item_id text,
-  count counter,
-  PRIMARY KEY (item_id));
+
+CREATE TYPE batch_specification(
+    id text,
+    name text,
+    description text,
+    listing_page_url text,
+    provider text,
+    interval_seconds int,
+    updated_at timestamp,
+    paused boolean,
+    last_url_visited text,
+    family_id text,
+    country_id text,
+    topic_id text,
+    start_year int,
+    end_year int,
+    condition_id text
+);
+
+CREATE TYPE price(
+    price decimal,
+    currency text
+);
+
+CREATE TYPE bid(
+    nickname text,
+    bid_price price,
+    quantity int,
+    is_automatic_bid boolean,
+    bid_at timestamp
+);
+
+CREATE TYPE auction(
+    id text,
+    auction_type int,
+    batch_specification_id text,
+    external_id text,
+    match_id text,
+    url text,
+    title text,
+    is_sold boolean,
+    seller_nickname text,
+    seller_location text,
+    start_price price,
+    final_price price,
+    start_date timestamp,
+    end_date timestamp,
+    thumbnail_url text,
+    large_image_url text,
+    bids list<bid>,
+    integration_status int
+);
+
+CREATE TABLE IF NOT EXISTS batch (
+    id text,
+    batch_specification batch_specification,
+    created_at timestamp,
+    auctions list<auction>
+    PRIMARY KEY (id)
+);
 

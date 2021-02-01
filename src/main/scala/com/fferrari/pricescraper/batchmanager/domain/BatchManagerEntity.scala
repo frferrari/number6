@@ -42,7 +42,7 @@ object BatchManagerEntity {
 
   final case class ReleaseProvider(provider: String, replyTo: ActorRef[StatusReply[Done]]) extends Command
 
-  final case class CreateBatch(batchSpecificationID: BatchSpecification.ID,
+  final case class CreateBatch(batchSpecification: BatchSpecification,
                                auctions: List[Auction],
                                replyTo: ActorRef[StatusReply[Done]]) extends Command
 
@@ -55,7 +55,7 @@ object BatchManagerEntity {
 
   final case class BatchCreated(batchID: BatchEntity.ID,
                                 timestamp: Instant,
-                                batchSpecificationID: BatchSpecification.ID,
+                                batchSpecification: BatchSpecification,
                                 auctions: List[Auction]) extends Event
 
   final case class BatchSpecificationAdded(batchSpecificationID: BatchSpecification.ID, timestamp: Instant, name: String, description: String, url: String, provider: String, intervalSeconds: Long) extends Event
@@ -104,9 +104,9 @@ object BatchManagerEntity {
 
   case class ActiveBatchManager(batchSpecifications: List[BatchSpecification]) extends BatchManager {
     override def applyCommand(cmd: Command, scrapers: Scrapers)(implicit context: ActorContext[Command]): ReplyEffect = cmd match {
-      case CreateBatch(batchSpecificationID, auctions, replyTo) =>
+      case CreateBatch(batchSpecification, auctions, replyTo) =>
         Effect
-          .persist(BatchCreated(BatchEntity.generateID, Clock.now, batchSpecificationID, auctions))
+          .persist(BatchCreated(BatchEntity.generateID, Clock.now, batchSpecification, auctions))
           .thenReply(replyTo)(_ => StatusReply.Ack)
 
       case AddBatchSpecification(name, description, url, provider, intervalSeconds, replyTo) =>
@@ -206,10 +206,10 @@ object BatchManagerEntity {
     }
 
     override def applyEvent(event: Event)(implicit context: ActorContext[Command]): BatchManager = event match {
-      case BatchCreated(batchID, timestamp, batchSpecificationID, auctions) =>
+      case BatchCreated(batchID, timestamp, batchSpecification, auctions) =>
         // TODO Maybe not the best way to handle the child actor creation ???
         val batchActor = context.spawn(application.BatchActor(batchID), s"batch-${batchID}")
-        batchActor.ask(BatchEntity.Create(batchID, batchSpecificationID, auctions, _))(3.seconds, context.system.scheduler)
+        batchActor.ask(BatchEntity.Create(batchID, batchSpecification, auctions, _))(3.seconds, context.system.scheduler)
         this
 
       case BatchSpecificationAdded(batchSpecificationID, timestamp, name, description, url, provider, intervalSeconds) =>
