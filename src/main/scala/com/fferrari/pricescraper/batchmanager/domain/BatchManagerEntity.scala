@@ -217,12 +217,15 @@ object BatchManagerEntity {
         copy(batchSpecifications = batchSpecifications :+ batchSpecification)
 
       case LastUrlVisitedUpdated(batchSpecificationID, timestamp, lastUrlVisited) =>
+        /* TODO reactivate
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
           context.log.info(s"LastUrlVisitedUpdated to $lastUrlVisited for batch $batchSpecificationID")
           val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited), updatedAt = Clock.now)
           copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification))
         } else throw new IllegalStateException(s"Trying to update the last url visited for an unknown batch specification ID $batchSpecificationID (event)")
+         */
+        this
 
       case BatchSpecificationPaused(batchSpecificationID, timestamp) =>
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)

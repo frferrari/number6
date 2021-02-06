@@ -15,6 +15,8 @@ import com.fferrari.pricescraper.common.Entity.{EntityCommand, EntityEvent}
 
 object BatchEntity {
 
+  val allEventsTag = "batch"
+
   // Commands
   sealed trait Command extends EntityCommand
 
@@ -23,8 +25,9 @@ object BatchEntity {
                           auctions: List[Auction],
                           replyTo: ActorRef[StatusReply[Done]]) extends Command
 
-  final case class MatchAuction(auctionID: Auction.ID,
-                                matchID: UUID,
+  final case class MatchAuction(batchID: BatchEntity.ID,
+                                auctionID: Auction.ID,
+                                itemID: UUID,
                                 replyTo: ActorRef[StatusReply[Done]]) extends Command
 
   final case class Stop(replyTo: ActorRef[StatusReply[Done]]) extends Command
@@ -37,9 +40,10 @@ object BatchEntity {
                            batchSpecification: BatchSpecification,
                            auctions: List[Auction]) extends Event
 
-  final case class AuctionMatched(auctionID: Auction.ID,
+  final case class AuctionMatched(batchID: BatchEntity.ID,
+                                  auctionID: Auction.ID,
                                   timestamp: Instant,
-                                  matchID: UUID) extends Event
+                                  itemID: UUID) extends Event
 
   final case class Stopped(timestamp: Instant) extends Event
 
@@ -82,10 +86,10 @@ object BatchEntity {
                          batchSpecification: BatchSpecification,
                          auctions: List[Auction]) extends Batch {
     override def applyCommand(cmd: Command): ReplyEffect = cmd match {
-      case MatchAuction(auctionID, matchID, replyTo) =>
+      case MatchAuction(batchID, auctionID, itemID, replyTo) =>
         if (auctions.indexWhere(_.auctionID == auctionID) >= 0) {
           Effect
-            .persist(AuctionMatched(auctionID, Clock.now, matchID))
+            .persist(AuctionMatched(batchID, auctionID, Clock.now, itemID))
             .thenReply(replyTo)(_ => StatusReply.Ack)
         } else {
           Effect
@@ -105,9 +109,9 @@ object BatchEntity {
     }
 
     override def applyEvent(event: Event): Batch = event match {
-      case AuctionMatched(auctionID, timestamp, matchID) =>
+      case AuctionMatched(batchID, auctionID, timestamp, itemID) =>
         val idx = auctions.indexWhere(_.auctionID == auctionID)
-        val newAuction: Auction = auctions(idx).copy(matchID = Some(matchID))
+        val newAuction: Auction = auctions(idx).copy(matchID = Some(itemID))
         copy(auctions = auctions.updated(idx, newAuction))
 
       case Stopped(timestamp) =>
@@ -136,5 +140,6 @@ object BatchEntity {
       EmptyBatch,
       (state, cmd) => state.applyCommand(cmd),
       (state, event) => state.applyEvent(event))
+      .withTagger(_ => Set(allEventsTag))
   }
 }

@@ -14,6 +14,9 @@ val alpakkaKafkaVersion = "2.0.5"
 val akkaProjectionVersion = "1.0.0"
 
 val slickVersion = "3.3.2"
+val elastic4sVersion = "7.10.2"
+
+val scalikeJdbcVersion = "3.5.0"
 
 val akkaActorTyped = "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion
 val akkaActorTestkitTyped = "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion % Test
@@ -35,14 +38,19 @@ val akkaPersistenceCassandra = "com.typesafe.akka" %% "akka-persistence-cassandr
 val akkaPersistenceQuery = "com.typesafe.akka" %% "akka-persistence-query" % akkaVersion
 val akkaProjectionCore = "com.lightbend.akka" %% "akka-projection-core" % "1.1.0"
 val akkaProjectionEventSourced = "com.lightbend.akka" %% "akka-projection-eventsourced" % akkaProjectionVersion
-val akkaProjectionCassandra = "com.lightbend.akka" %% "akka-projection-cassandra" % akkaProjectionVersion
+val akkaProjectionJdbc = "com.lightbend.akka" %% "akka-projection-jdbc" % akkaProjectionVersion
 val akkaStreamKafka = "com.typesafe.akka" %% "akka-stream-kafka" % alpakkaKafkaVersion
 
 val slick = "com.typesafe.slick" %% "slick" % slickVersion
 val slickHirakiCp = "com.typesafe.slick" %% "slick-hikaricp" % slickVersion
-val postgresql = "org.postgresql" % "postgresql" % "42.2.5"
+
+val postgresql = "org.postgresql" % "postgresql" % "42.2.18"
+val scalikeJdbc = "org.scalikejdbc" %% "scalikejdbc" % scalikeJdbcVersion
+val scalikeJdbcConfig = "org.scalikejdbc" %% "scalikejdbc-config" % scalikeJdbcVersion
+val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "1.0.2"
+
 val logbackClassic = "ch.qos.logback" % "logback-classic" % "1.2.3"
-val scalatest = "org.scalatest" %% "scalatest" % "3.1.4" % Test
+val scalaTest = "org.scalatest" %% "scalatest" % "3.1.4" % Test
 val scalaScraper = "net.ruippeixotog" %% "scala-scraper" % "2.2.0"
 val catsCore = "org.typelevel" %% "cats-core" % "2.1.1" withSources()
 
@@ -69,22 +77,26 @@ libraryDependencies ++= Seq(
   akkaSerializationJackson,
 
   akkaStream,
+
   akkaHttp2Support,
   akkaHttp,
   akkaHttpSprayJson,
 
   akkaProjectionCore,
   akkaProjectionEventSourced,
-  akkaProjectionCassandra,
+  akkaProjectionJdbc,
 
   slick,
   slickHirakiCp,
 
   postgresql,
+  reactiveMongo,
+  scalikeJdbc,
+  scalikeJdbcConfig,
 
   logbackClassic,
 
-  scalatest,
+  scalaTest,
   scalaScraper,
   catsCore
 )

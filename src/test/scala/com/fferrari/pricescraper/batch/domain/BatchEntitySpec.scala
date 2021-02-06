@@ -59,7 +59,7 @@ class BatchEntitySpec extends ScalaTestWithActorTestKit(EventSourcedBehaviorTest
       val result = eventSourcedTestKit.runCommand[StatusReply[Done]](MatchAuction(auctionID2, matchID, _))
       result.reply shouldBe StatusReply.Ack
       result.eventOfType[AuctionMatched].auctionID shouldBe auctionID2
-      result.eventOfType[AuctionMatched].matchID shouldBe matchID
+      result.eventOfType[AuctionMatched].itemID shouldBe matchID
       result.stateOfType[ActiveBatch].batchID shouldBe batchID
       result.stateOfType[ActiveBatch].batchSpecification.batchSpecificationID shouldBe batchSpecification1.batchSpecificationID
       result.stateOfType[ActiveBatch].auctions should contain theSameElementsAs List(auction1, auction2.copy(matchID = Some(matchID)))

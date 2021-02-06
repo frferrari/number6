@@ -25,7 +25,7 @@ CREATE TYPE price(
 
 CREATE TYPE bid(
     nickname text,
-    bid_price price,
+    bid_price FROZEN<price>,
     quantity int,
     is_automatic_bid boolean,
     bid_at timestamp
@@ -42,21 +42,21 @@ CREATE TYPE auction(
     is_sold boolean,
     seller_nickname text,
     seller_location text,
-    start_price price,
-    final_price price,
+    start_price FROZEN<price>,
+    final_price FROZEN<price>,
     start_date timestamp,
     end_date timestamp,
     thumbnail_url text,
     large_image_url text,
-    bids list<bid>,
+    bids list<FROZEN <bid>>,
     integration_status int
 );
 
-CREATE TABLE IF NOT EXISTS batch (
+CREATE TABLE IF NOT EXISTS batch_auctions(
     id text,
     batch_specification batch_specification,
     created_at timestamp,
-    auctions list<auction>
+    auctions list<auction>,
     PRIMARY KEY (id)
 );
 

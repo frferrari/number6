@@ -148,7 +148,7 @@ object DelcampeUtil {
    * @param minDurationMs The minimum duration in milliseconds to be returned
    * @return
    */
-  def randomDurationMs(minDurationMs: Int = 100): FiniteDuration = (minDurationMs + rnd.nextInt(500)).milliseconds
+  def randomDurationMs(minDurationMs: Int = 500): FiniteDuration = (minDurationMs + rnd.nextInt(5000)).milliseconds
 
   /**
    * Extracts the label associated to a seller information (Location of the seller, Nickname of the seller, ...)
