@@ -24,8 +24,7 @@ final class ScalikeJdbcSession extends JdbcSession {
   val db: DB = DB.connect()
   db.autoClose(false)
 
-  override def withConnection[Result](
-                                       func: Function[Connection, Result]): Result = {
+  override def withConnection[Result](func: Function[Connection, Result]): Result = {
     db.begin()
     db.withinTxWithConnection(func(_))
   }

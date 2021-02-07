@@ -48,12 +48,13 @@ object ScalikeJdbcSetup {
         .toMillis
     dataSource.setConnectionTimeout(timeout)
 
-    dataSource.setDriverClassName(
-      config.getString("jdbc-connection-settings.driver"))
+    dataSource.setDriverClassName(config.getString("jdbc-connection-settings.driver"))
+    println("=====> ScalikeJdbcSetup url = " + config.getString("jdbc-connection-settings.url"))
+    println("=====> ScalikeJdbcSetup user = " + config.getString("jdbc-connection-settings.user"))
+    println("=====> ScalikeJdbcSetup password = " + config.getString("jdbc-connection-settings.password"))
     dataSource.setJdbcUrl(config.getString("jdbc-connection-settings.url"))
     dataSource.setUsername(config.getString("jdbc-connection-settings.user"))
-    dataSource.setPassword(
-      config.getString("jdbc-connection-settings.password"))
+    dataSource.setPassword(config.getString("jdbc-connection-settings.password"))
 
     ConnectionPool.singleton(
       new DataSourceConnectionPool(

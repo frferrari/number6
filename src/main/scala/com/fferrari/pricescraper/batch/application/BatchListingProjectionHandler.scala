@@ -23,7 +23,9 @@ class BatchListingProjectionHandler(tag: String,
     eventEnvelope.event match {
       case BatchEntity.Created(batchID, timestamp, batchSpecification, auctions) =>
         log.info("Persisting BatchEntity.Created in Projection ***************************")
-        repo.create(BatchDTO(batchID, timestamp, batchSpecification, auctions)).map(_ => Done)
+        session.withConnection { conn =>
+          repo.create(BatchDTO(batchID, timestamp, batchSpecification, auctions)).map(_ => Done)
+        }
 
       case _ =>
         log.info(s"Unhandled event ${eventEnvelope.event} ***************************")

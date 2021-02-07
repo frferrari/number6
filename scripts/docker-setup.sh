@@ -119,6 +119,10 @@ db.batch.update({ batchID: "b1", "batchSpecification.auctions.auctionID": "a2" }
 #
 docker pull postgres
 
+docker ps
+docker exec -it number6_postgres-db_1 bash
+psql -U number6 -W
+
 #
 # ##################################################################################################
 #

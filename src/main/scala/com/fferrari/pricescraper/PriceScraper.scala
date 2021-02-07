@@ -5,7 +5,7 @@ import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.Offset
-import akka.projection.ProjectionId
+import akka.projection.{ProjectionBehavior, ProjectionId}
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.eventsourced.scaladsl.EventSourcedProvider
 import akka.projection.jdbc.scaladsl.JdbcProjection
@@ -57,6 +57,8 @@ object PriceScraper {
         handler = () => new BatchListingProjectionHandler(tag, context.system, new BatchListingRepositoryImpl(mongoDB)),
         sessionFactory = () => new ScalikeJdbcSession()
       )(context.system)
+
+      context.spawn(ProjectionBehavior(batchListingProjection), batchListingProjection.projectionId.id)
 
       new PriceScraper(context)
     }
