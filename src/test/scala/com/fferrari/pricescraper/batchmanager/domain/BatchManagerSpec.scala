@@ -32,7 +32,6 @@ class BatchManagerSpec
       BatchManagerActor.apply)
 
   override protected def beforeEach(): Unit = {
-    super.beforeEach()
     eventSourcedTestKit.clear()
   }
 
@@ -44,10 +43,10 @@ class BatchManagerSpec
     }
 
     "SUCCEED to AddBatchSpecification when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
+      val createResult = eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
+      createResult.reply shouldBe StatusReply.Ack
 
       val addResult = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
-      println(s"=====> ${addResult.event}")
       addResult.reply.isSuccess shouldBe true
 
       val batchSpecifications = addResult.stateOfType[ActiveBatchManager].batchSpecifications

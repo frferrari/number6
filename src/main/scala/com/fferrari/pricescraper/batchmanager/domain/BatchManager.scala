@@ -43,8 +43,8 @@ object BatchManager {
       case cmd: AddBatchSpecification =>
         batchSpecifications
           .find(_.name == cmd.name)
-          .map(_ => Success(cmd.toBatchSpecificationAdded))
-          .getOrElse(Failure(new IllegalArgumentException(s"A batchSpecification with the name ${cmd.name} already exists")))
+          .map(_ => Failure(new IllegalArgumentException(s"A batchSpecification with the name ${cmd.name} already exists")))
+          .getOrElse(Success(cmd.toBatchSpecificationAdded))
 
       case cmd: UpdateLastUrlVisited =>
         batchSpecifications
