@@ -1,10 +1,10 @@
 package com.fferrari.pricescraper.batch.application
 
+/*
 import akka.Done
 import akka.actor.typed.ActorSystem
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.jdbc.scaladsl.JdbcHandler
-import com.fferrari.pricescraper.batch.domain.BatchEntity
 import com.fferrari.pricescraper.batch.dto.BatchDTO
 import com.fferrari.pricescraper.service.ScalikeJdbcSession
 import org.slf4j.LoggerFactory
@@ -32,3 +32,4 @@ class BatchListingProjectionHandler(tag: String,
         ()
     }
 }
+ */

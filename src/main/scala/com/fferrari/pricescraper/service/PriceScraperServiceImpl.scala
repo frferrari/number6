@@ -10,7 +10,7 @@ import akka.grpc.GrpcServiceException
 import akka.pattern.StatusReply
 import akka.util.Timeout
 import com.fferrari.pricescraper.PriceScraper.Command
-import com.fferrari.pricescraper.batchmanager.domain.{BatchManagerEntity, BatchSpecification}
+import com.fferrari.pricescraper.batchmanager.domain.{BatchManager, BatchManagerCommand, BatchSpecification}
 import com.fferrari.pricescraper._
 import com.fferrari.pricescraper.proto.{AddResponse, PauseBatchSpecificationRequest}
 import io.grpc.Status
@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
 
-class PriceScraperServiceImpl(batchManager: ActorRef[BatchManagerEntity.Command],
+class PriceScraperServiceImpl(batchManager: ActorRef[BatchManagerCommand],
                               context: ActorContext[Command]) extends proto.PriceScraperService {
   private val logger = LoggerFactory.getLogger(getClass)
 
@@ -45,8 +45,8 @@ class PriceScraperServiceImpl(batchManager: ActorRef[BatchManagerEntity.Command]
   }
 
   private def toAddBatchSpecification(in: proto.AddBatchSpecificationRequest)
-                                     (ref: ActorRef[StatusReply[BatchSpecification.ID]]): BatchManagerEntity.AddBatchSpecification =
-    BatchManagerEntity
+                                     (ref: ActorRef[StatusReply[BatchSpecification.BatchSpecificationID]]): BatchManagerCommand.AddBatchSpecification =
+    BatchManagerCommand
       .AddBatchSpecification(
         in.name,
         in.description,
@@ -72,6 +72,6 @@ class PriceScraperServiceImpl(batchManager: ActorRef[BatchManagerEntity.Command]
   }
 
   private def toPauseBatchSpecification(in: PauseBatchSpecificationRequest)
-                                       (ref: ActorRef[StatusReply[Done]]): BatchManagerEntity.PauseBatchSpecification =
-    BatchManagerEntity.PauseBatchSpecification(java.util.UUID.fromString(in.batchSpecificationId), ref)
+                                       (ref: ActorRef[StatusReply[Done]]): BatchManagerCommand.PauseBatchSpecification =
+    BatchManagerCommand.PauseBatchSpecification(java.util.UUID.fromString(in.batchSpecificationId), ref)
 }

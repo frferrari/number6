@@ -3,11 +3,12 @@ package com.fferrari.pricescraper.auction.application
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.pattern.StatusReply
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.pricescraper.auction.application.DelcampeUtil.randomDurationMs
 import com.fferrari.pricescraper.auction.domain.{Auction, ListingPageAuctionLinks}
-import com.fferrari.pricescraper.batchmanager.domain.{BatchManagerEntity, BatchSpecification}
+import com.fferrari.pricescraper.batchmanager.domain.{BatchManagerCommand, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
 import scala.concurrent.duration._
@@ -30,7 +31,7 @@ object AuctionScraperActor {
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
   def apply[V <: AuctionValidator](validator: () => V,
-                                   batchManagerRef: ActorRef[BatchManagerEntity.Command]): Behavior[Command] =
+                                   batchManagerRef: ActorRef[BatchManagerCommand]): Behavior[Command] =
     Behaviors.setup { context =>
       Behaviors.withTimers { implicit timers =>
         context.log.info("Starting")
@@ -41,7 +42,7 @@ object AuctionScraperActor {
 }
 
 class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
-                                                         batchManagerRef: ActorRef[BatchManagerEntity.Command])
+                                                         batchManagerRef: ActorRef[BatchManagerCommand])
                                                         (implicit timers: TimerScheduler[AuctionScraperActor.Command]) {
 
   import AuctionScraperActor._
@@ -53,8 +54,8 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         Behaviors.same
 
       case (context, AskNextBatchSpecification) =>
-        context.pipeToSelf(batchManagerRef.ask(BatchManagerEntity.ProvideNextBatchSpecification("delcampe", _))(3.seconds,context.system.scheduler)) {
-          case Success(ProceedToBatchSpecification(batchSpecification)) =>
+        context.pipeToSelf(batchManagerRef.ask(BatchManagerCommand.ProvideNextBatchSpecification("delcampe", _))(3.seconds,context.system.scheduler)) {
+          case Success(StatusReply.Success(ProceedToBatchSpecification(batchSpecification))) =>
             ProcessBatchSpecification(batchSpecification)
 
           case _ =>
@@ -153,12 +154,12 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             context.log.info("No more auction links to process, creating a Batch, then moving to the next listing page")
 
             // Create a Batch with the extracted auctions
-            batchManagerRef.ask(BatchManagerEntity.CreateBatch(batchSpecification, auctions, _))(3.seconds, context.system.scheduler)
+            batchManagerRef.ask(BatchManagerCommand.CreateBatch(batchSpecification, auctions, _))(3.seconds, context.system.scheduler)
 
             // Update the lastUrlVisited
             firstAuctionUrl
               .collect { case url if pageNumber == 1 =>
-                batchManagerRef.ask(BatchManagerEntity.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url, _))(3.seconds, context.system.scheduler)
+                batchManagerRef.ask(BatchManagerCommand.UpdateLastUrlVisited(batchSpecification.batchSpecificationID, url, _))(3.seconds, context.system.scheduler)
               }
 
             // Move the the next listing page

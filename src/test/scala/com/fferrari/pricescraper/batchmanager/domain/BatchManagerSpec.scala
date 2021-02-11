@@ -7,7 +7,9 @@ import akka.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import akka.pattern.StatusReply
 import akka.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 import com.fferrari.pricescraper.batchmanager.application.BatchManagerActor
-import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEntity._
+import com.fferrari.pricescraper.batchmanager.domain.BatchManager.ActiveBatchManager
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerCommand._
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEvent._
 import com.typesafe.config.{Config, ConfigFactory}
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -25,7 +27,7 @@ class BatchManagerSpec
   with BeforeAndAfterEach {
 
   private val eventSourcedTestKit =
-    EventSourcedBehaviorTestKit[Command, Event, BatchManager](
+    EventSourcedBehaviorTestKit[BatchManagerCommand, BatchManagerEvent, BatchManager](
       system,
       BatchManagerActor.apply)
 
@@ -36,15 +38,16 @@ class BatchManagerSpec
 
   "BatchManager" should {
     "SUCCEED to Create when in [EmptyBatchManager] state" in {
-      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      val result = eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
       result.reply shouldBe StatusReply.Ack
       result.stateOfType[ActiveBatchManager].batchSpecifications shouldBe Nil
     }
 
     "SUCCEED to AddBatchSpecification when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
-      val addResult = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val addResult = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      println(s"=====> ${addResult.event}")
       addResult.reply.isSuccess shouldBe true
 
       val batchSpecifications = addResult.stateOfType[ActiveBatchManager].batchSpecifications
@@ -54,12 +57,12 @@ class BatchManagerSpec
     }
 
     "SUCCEED to AddBatchSpecification twice when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
-      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
       addResult1.reply.isSuccess shouldBe true
 
-      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
       addResult2.reply.isSuccess shouldBe true
       addResult2.eventOfType[BatchSpecificationAdded].batchSpecificationID shouldBe addResult2.stateOfType[ActiveBatchManager].batchSpecifications.filter(_.name == "spec2").head.batchSpecificationID
 
@@ -78,19 +81,19 @@ class BatchManagerSpec
     }
 
     "FAIL to AddBatchSpecification when in [ActiveBatchManager] state for an already existing batch specification name" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
-      eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
-      val result = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc2", "url2", "provider2", 30, _))
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
+      eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val result = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc2", "url2", "provider2", 30, _))
       result.reply.isError shouldBe true
     }
 
     "SUCCEED to UpdateLastUrlVisited when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
-      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
       addResult1.reply.isSuccess shouldBe true
 
-      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
       addResult2.reply.isSuccess shouldBe true
 
       val batchSpecifications = addResult2.stateOfType[ActiveBatchManager].batchSpecifications
@@ -104,9 +107,9 @@ class BatchManagerSpec
     }
 
     "FAIL to UpdateLastUrlVisited when in [ActiveBatchManager] state for an unknown batch specification" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
-      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
       addResult1.reply.isSuccess shouldBe true
 
       val updateResult = eventSourcedTestKit.runCommand[StatusReply[Done]](UpdateLastUrlVisited(UUID.randomUUID(), "last", _))
@@ -114,12 +117,12 @@ class BatchManagerSpec
     }
 
     "SUCCEED to PauseBatchSpecification then ReleaseBatchSpecification when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
-      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec1", "desc1", "url1", "provider1", 60, _))
       addResult1.reply.isSuccess shouldBe true
 
-      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification("spec2", "desc2", "url2", "provider1", 30, _))
       addResult2.reply.isSuccess shouldBe true
 
       val batchSpecifications = addResult2.stateOfType[ActiveBatchManager].batchSpecifications
@@ -139,18 +142,18 @@ class BatchManagerSpec
     }
 
     "SUCCEED to PauseProvider then ReleaseProvider when in [ActiveBatchManager] state" in {
-      eventSourcedTestKit.runCommand[StatusReply[Done]](Create)
+      eventSourcedTestKit.runCommand[StatusReply[Done]](CreateBatchManager)
 
       val (provider1, provider2) = ("provider1", "provider2")
       val (spec1, spec2, spec3) = ("spec1", "spec2", "spec3")
 
-      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification(spec1, "desc1", "url1", provider1, 60, _))
+      val addResult1 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification(spec1, "desc1", "url1", provider1, 60, _))
       addResult1.reply.isSuccess shouldBe true
 
-      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification(spec2, "desc2", "url2", provider1, 30, _))
+      val addResult2 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification(spec2, "desc2", "url2", provider1, 30, _))
       addResult2.reply.isSuccess shouldBe true
 
-      val addResult3 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.ID]](AddBatchSpecification(spec3, "desc3", "url3", provider2, 30, _))
+      val addResult3 = eventSourcedTestKit.runCommand[StatusReply[BatchSpecification.BatchSpecificationID]](AddBatchSpecification(spec3, "desc3", "url3", provider2, 30, _))
       addResult3.reply.isSuccess shouldBe true
 
       val batchSpecifications = addResult3.stateOfType[ActiveBatchManager].batchSpecifications

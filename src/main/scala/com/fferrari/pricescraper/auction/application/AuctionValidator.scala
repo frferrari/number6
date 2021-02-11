@@ -25,7 +25,7 @@ trait AuctionValidator {
   def fetchListingPageAuctionLinks(listingPageUrl: String, lastUrlVisited: Option[String])
                                   (implicit htmlDoc: JsoupDocument): Validated[NonEmptyChain[AuctionDomainValidation], ListingPageAuctionLinks]
 
-  def fetchAuction(batchAuctionLink: AuctionLink, batchSpecificationID: BatchSpecification.ID)
+  def fetchAuction(batchAuctionLink: AuctionLink, batchSpecificationID: BatchSpecification.BatchSpecificationID)
                   (implicit jsoupBrowser: JsoupBrowser): Validated[NonEmptyChain[AuctionDomainValidation], Auction] = {
     implicit val htmlDoc: jsoupBrowser.DocumentType = jsoupBrowser.get(batchAuctionLink.auctionUrl)
 

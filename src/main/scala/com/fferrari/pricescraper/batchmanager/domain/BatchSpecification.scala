@@ -3,7 +3,7 @@ package com.fferrari.pricescraper.batchmanager.domain
 import java.time.Instant
 import java.util.UUID
 
-case class BatchSpecification(batchSpecificationID: BatchSpecification.ID,
+case class BatchSpecification(batchSpecificationID: BatchSpecification.BatchSpecificationID,
                               name: String,
                               description: String,
                               listingPageUrl: String,
@@ -19,9 +19,9 @@ case class BatchSpecification(batchSpecificationID: BatchSpecification.ID,
                               endYear: Option[Int] = None,
                               conditionId: Option[UUID] = None) {
   def needsUpdate(now: java.time.Instant = java.time.Instant.now()): Boolean =
-    /*updatedAt.plusSeconds(intervalSeconds).isAfter(now) &&*/ !paused
+    now.isAfter(updatedAt.plusSeconds(intervalSeconds)) && !paused
 }
 
 object BatchSpecification {
-  type ID = UUID
+  type BatchSpecificationID = UUID
 }

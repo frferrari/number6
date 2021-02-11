@@ -5,17 +5,16 @@ import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.Offset
-import akka.projection.{ProjectionBehavior, ProjectionId}
 import akka.projection.eventsourced.EventEnvelope
 import akka.projection.eventsourced.scaladsl.EventSourcedProvider
 import akka.projection.jdbc.scaladsl.JdbcProjection
 import akka.projection.scaladsl.SourceProvider
+import akka.projection.{ProjectionBehavior, ProjectionId}
 import akka.util.Timeout
 import com.fferrari.pricescraper.PriceScraper.Command
-import com.fferrari.pricescraper.batch.application.{BatchListingProjectionHandler, BatchListingRepositoryImpl}
-import com.fferrari.pricescraper.batch.domain.BatchEntity
+import com.fferrari.pricescraper.batch.domain.{Batch, BatchEvent}
 import com.fferrari.pricescraper.batchmanager.application.BatchManagerActor
-import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEntity
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerCommand
 import com.fferrari.pricescraper.service.{PriceScraperServiceImpl, ScalikeJdbcSession, ScalikeJdbcSetup}
 import reactivemongo.api.{AsyncDriver, MongoConnection}
 
@@ -40,13 +39,12 @@ object PriceScraper {
 
   def apply(mongoDB: reactivemongo.api.DB): Behavior[Command] = {
     Behaviors.setup { context =>
-      val tag = BatchEntity.allEventsTag
-
       ScalikeJdbcSetup.init(context.system)
 
-      val sourceProvider: SourceProvider[Offset, EventEnvelope[BatchEntity.Event]] =
+      /*
+      val sourceProvider: SourceProvider[Offset, EventEnvelope[BatchEvent]] =
         EventSourcedProvider
-          .eventsByTag[BatchEntity.Event](
+          .eventsByTag[BatchEvent](
             context.system,
             readJournalPluginId = CassandraReadJournal.Identifier,
             tag = tag)
@@ -60,6 +58,8 @@ object PriceScraper {
 
       context.spawn(ProjectionBehavior(batchListingProjection), batchListingProjection.projectionId.id)
 
+      */
+
       new PriceScraper(context)
     }
   }
@@ -71,9 +71,9 @@ class PriceScraper(context: ActorContext[Command]) extends AbstractBehavior[Comm
   implicit val askTimeout: Timeout = 3.seconds
 
   // Start the batch manager actor
-  val batchManager: ActorRef[BatchManagerEntity.Command] =
+  val batchManager: ActorRef[BatchManagerCommand] =
     context.spawn(BatchManagerActor.apply, BatchManagerActor.actorName)
-  batchManager.ask(BatchManagerEntity.Create)(askTimeout, context.system.scheduler)
+  batchManager.ask(BatchManagerCommand.CreateBatchManager)(askTimeout, context.system.scheduler)
 
   val grpcInterface = system.settings.config.getString("price-scraper-service.grpc.interface")
   val grpcPort = system.settings.config.getInt("price-scraper-service.grpc.port")

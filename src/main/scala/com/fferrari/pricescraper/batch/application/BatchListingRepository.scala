@@ -1,5 +1,6 @@
 package com.fferrari.pricescraper.batch.application
 
+/*
 import com.fferrari.pricescraper.auction.domain.{Auction, Bid, Price}
 import com.fferrari.pricescraper.batch.dto.{BatchDTO, BatchDTOJsonSupport}
 import com.fferrari.pricescraper.batchmanager.domain.BatchSpecification
@@ -32,3 +33,4 @@ class BatchListingRepositoryImpl(mongoDB: reactivemongo.api.DB)
       .one(batchDTO)
   }
 }
+*/
