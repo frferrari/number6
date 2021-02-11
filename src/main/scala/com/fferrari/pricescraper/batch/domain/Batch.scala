@@ -11,7 +11,7 @@ import com.fferrari.pricescraper.batchmanager.domain.BatchSpecification
 import scala.util.{Failure, Success, Try}
 
 sealed trait Batch {
-  def processCommand(command: BatchCommand): Try[List[BatchEvent]]
+  def processCommand(command: BatchCommand): Try[BatchEvent]
 
   def applyEvent(event: BatchEvent): Try[Batch]
 }
@@ -21,9 +21,9 @@ object Batch {
   val tag = "batch"
 
   final case object EmptyBatch extends Batch {
-    override def processCommand(command: BatchCommand): Try[List[BatchEvent]] = command match {
+    override def processCommand(command: BatchCommand): Try[BatchEvent] = command match {
       case cmd: CreateBatch =>
-        Success(List(cmd.toBatchCreated))
+        Success(cmd.toBatchCreated)
 
       case _ =>
         Failure(new IllegalStateException(s"Unexpected command $command in state EmptyBatch"))
@@ -42,10 +42,10 @@ object Batch {
                                batchSpecification: BatchSpecification,
                                auctions: List[Auction],
                                timestamp: Instant) extends Batch {
-    override def processCommand(command: BatchCommand): Try[List[BatchEvent]] = command match {
+    override def processCommand(command: BatchCommand): Try[BatchEvent] = command match {
       case cmd: MatchAuction =>
         if (auctions.indexWhere(_.auctionID == cmd.auctionID) >= 0)
-          Success(List(cmd.toAuctionMatched))
+          Success(cmd.toAuctionMatched)
         else
           Failure(new IllegalArgumentException(s"Unable to MatchAuction ${cmd.auctionID} against Batch $batchID in state ActiveBatch"))
 

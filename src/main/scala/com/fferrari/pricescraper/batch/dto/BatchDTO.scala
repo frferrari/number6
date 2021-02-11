@@ -1,6 +1,6 @@
+/*
 package com.fferrari.pricescraper.batch.dto
 
-/*
 import java.time.Instant
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport

@@ -1,6 +1,6 @@
+/*
 package com.fferrari.pricescraper.batch.application
 
-/*
 import akka.Done
 import akka.actor.typed.ActorSystem
 import akka.projection.eventsourced.EventEnvelope

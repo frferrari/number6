@@ -5,9 +5,8 @@ import java.util.UUID
 import akka.Done
 import akka.actor.typed.ActorRef
 import akka.pattern.StatusReply
-import com.fferrari.pricescraper.auction.application.AuctionScraperActor
-import com.fferrari.pricescraper.auction.domain.Auction
-import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEvent.{BatchCreated, BatchManagerCreated, BatchSpecificationAdded, BatchSpecificationPaused, BatchSpecificationReleased, LastUrlVisitedUpdated, ProceedToBatchSpecification, ProviderPaused, ProviderReleased}
+import com.fferrari.pricescraper.auction.domain.{Auction, AuctionScraperCommand}
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEvent._
 import com.fferrari.pricescraper.batchmanager.domain.BatchSpecification.BatchSpecificationID
 import com.fferrari.pricescraper.common.Clock
 
@@ -71,7 +70,7 @@ object BatchManagerCommand {
   }
 
   final case class ProvideNextBatchSpecification(provider: String,
-                                                 replyTo: ActorRef[StatusReply[AuctionScraperActor.Command]]) extends BatchManagerCommand {
+                                                 replyTo: ActorRef[StatusReply[AuctionScraperCommand]]) extends BatchManagerCommand {
     def toProceedToBatchSpecification(batchSpecification: BatchSpecification): ProceedToBatchSpecification =
       ProceedToBatchSpecification(batchSpecification, Clock.now)
   }

@@ -8,6 +8,8 @@ import akka.pattern.StatusReply
 import akka.persistence.typed.PersistenceId
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, ReplyEffect}
 import com.fferrari.pricescraper.auction.application.{AuctionScraperActor, DelcampeValidator}
+import com.fferrari.pricescraper.auction.domain.AuctionScraperCommand
+import com.fferrari.pricescraper.auction.domain.AuctionScraperCommand.StartAuctionScraper
 import com.fferrari.pricescraper.batch.application
 import com.fferrari.pricescraper.batch.domain.BatchCommand
 import com.fferrari.pricescraper.batchmanager.domain.BatchManager.EmptyBatchManager
@@ -23,7 +25,7 @@ object BatchManagerActor {
 
   val BatchManagerServiceKey = ServiceKey[BatchManagerCommand]("batchManagerService")
 
-  case class Scrapers(delcampeScraperRouter: ActorRef[AuctionScraperActor.Command])
+  case class Scrapers(delcampeScraperRouter: ActorRef[AuctionScraperCommand])
 
   def apply: Behavior[BatchManagerCommand] =
     Behaviors.setup { implicit context =>
@@ -36,7 +38,7 @@ object BatchManagerActor {
       val scrapers = spawnScrappers(context, context.self)
 
       // Start the scraper process
-      scrapers.delcampeScraperRouter ! AuctionScraperActor.Start
+      scrapers.delcampeScraperRouter ! StartAuctionScraper
 
       EventSourcedBehavior.withEnforcedReplies[BatchManagerCommand, BatchManagerEvent, BatchManager](
         PersistenceId.ofUniqueId(actorName),
@@ -53,7 +55,7 @@ object BatchManagerActor {
    * @return A class containing the actor ref of the different routers for the different providers
    */
   def spawnScrappers(context: ActorContext[BatchManagerCommand], batchManagerRef: ActorRef[BatchManagerCommand]): Scrapers = {
-    val delcampeScraperRouter: ActorRef[AuctionScraperActor.Command] =
+    val delcampeScraperRouter: ActorRef[AuctionScraperCommand] =
       context.spawn(AuctionScraperActor(() => new DelcampeValidator, batchManagerRef), AuctionScraperActor.actorName)
 
     Scrapers(delcampeScraperRouter)
@@ -76,7 +78,7 @@ object BatchManagerActor {
       case (cmd: ProvideNextBatchSpecification, Success(event: ProceedToBatchSpecification)) =>
         Effect
           .none
-          .thenReply(cmd.replyTo)(_ => StatusReply.success(AuctionScraperActor.ProceedToBatchSpecification(event.batchSpecification)))
+          .thenReply(cmd.replyTo)(_ => StatusReply.success(AuctionScraperCommand.ProceedToBatchSpecification(event.batchSpecification)))
 
       case (cmd: ProvideNextBatchSpecification, Success(event: NothingToProcess)) =>
         Effect
@@ -99,6 +101,12 @@ object BatchManagerActor {
         Effect
           .none
           .thenReply(cmd.replyTo)(_ => StatusReply.error(f.getMessage))
+
+      case (cmd, event) =>
+        context.log.error(s"Unexpected event $event produced for command $cmd")
+        Effect
+          .unhandled
+          .thenNoReply()
     }
 
   def applyEvent(state: BatchManager, event: BatchManagerEvent)

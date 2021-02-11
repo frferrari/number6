@@ -7,7 +7,8 @@ import akka.pattern.StatusReply
 import cats.data.Chain
 import cats.data.Validated.{Invalid, Valid}
 import com.fferrari.pricescraper.auction.application.DelcampeUtil.randomDurationMs
-import com.fferrari.pricescraper.auction.domain.{Auction, ListingPageAuctionLinks}
+import com.fferrari.pricescraper.auction.domain.AuctionScraperCommand._
+import com.fferrari.pricescraper.auction.domain.{Auction, AuctionScraperCommand, ListingPageAuctionLinks}
 import com.fferrari.pricescraper.batchmanager.domain.{BatchManagerCommand, BatchSpecification}
 import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 
@@ -18,20 +19,10 @@ object AuctionScraperActor {
   val actorName = "auction-scraper"
   val batchManagerMaxRetries = 3
 
-  // Command
-  sealed trait Command
-  final case object Start extends Command
-  final case object AskNextBatchSpecification extends Command
-  final case class ProceedToBatchSpecification(batchSpecification: BatchSpecification) extends Command
-  final case class ProcessBatchSpecification(batchSpecification: BatchSpecification) extends Command
-  final case object ExtractListingPageUrls extends Command
-  final case object ExtractAuctions extends Command
-  final case object Stop extends Command
-
   implicit val jsoupBrowser: JsoupBrowser = JsoupBrowser.typed()
 
   def apply[V <: AuctionValidator](validator: () => V,
-                                   batchManagerRef: ActorRef[BatchManagerCommand]): Behavior[Command] =
+                                   batchManagerRef: ActorRef[BatchManagerCommand]): Behavior[AuctionScraperCommand] =
     Behaviors.setup { context =>
       Behaviors.withTimers { implicit timers =>
         context.log.info("Starting")
@@ -43,13 +34,13 @@ object AuctionScraperActor {
 
 class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                                                          batchManagerRef: ActorRef[BatchManagerCommand])
-                                                        (implicit timers: TimerScheduler[AuctionScraperActor.Command]) {
+                                                        (implicit timers: TimerScheduler[AuctionScraperCommand]) {
 
   import AuctionScraperActor._
 
-  private def idle: Behavior[Command] =
+  private def idle: Behavior[AuctionScraperCommand] =
     Behaviors.receivePartial {
-      case (context, Start) =>
+      case (context, StartAuctionScraper) =>
         context.self ! AskNextBatchSpecification
         Behaviors.same
 
@@ -67,7 +58,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
         context.self ! ExtractListingPageUrls
         processListingPage(batchSpecification, 1)
 
-      case (context, Stop) =>
+      case (context, StopAuctionScraper) =>
         Behaviors.stopped
 
       case (context, cmd) =>
@@ -76,7 +67,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
 
   private def processListingPage(batchSpecification: BatchSpecification,
                                  pageNumber: Int,
-                                 firstAuctionUrl: Option[String] = None): Behavior[Command] =
+                                 firstAuctionUrl: Option[String] = None): Behavior[AuctionScraperCommand] =
     Behaviors.receivePartial {
       case (context, cmd: ProcessBatchSpecification) =>
         throw new IllegalStateException(s"Unexpected command $cmd received in state [processListingPage]")
@@ -94,8 +85,8 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                 context.log.info(s"No auction links extracted from the listing page, going back to [idle] behavior")
                 backToIdle
 
-              case i =>
-                context.log.error(s"Error while fetching the listing page auction links ($i)")
+              case e =>
+                context.log.error(s"Error while fetching the listing page auction links ($e)")
                 backToIdle
             }
 
@@ -108,7 +99,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             backToIdle
         }
 
-      case (context, Stop) =>
+      case (context, StopAuctionScraper) =>
         Behaviors.stopped
 
       case (context, cmd) =>
@@ -120,7 +111,7 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
                               pageNumber: Int,
                               firstAuctionUrl: Option[String],
                               listingPageAuctionLinks: ListingPageAuctionLinks,
-                              auctions: List[Auction] = Nil): Behavior[Command] = {
+                              auctions: List[Auction] = Nil): Behavior[AuctionScraperCommand] = {
     Behaviors.receivePartial {
       case (context, cmd: ProcessBatchSpecification) =>
         throw new IllegalStateException(s"Unexpected command $cmd received in state [processListingPage]")
@@ -167,12 +158,12 @@ class AuctionScraperActor[V <: AuctionValidator] private(validator: V,
             processListingPage(batchSpecification, pageNumber + 1, firstAuctionUrl)
         }
 
-      case (context, Stop) =>
+      case (context, StopAuctionScraper) =>
         Behaviors.stopped
     }
   }
 
-  private def backToIdle(implicit timers: TimerScheduler[Command]): Behavior[Command] = {
+  private def backToIdle(implicit timers: TimerScheduler[AuctionScraperCommand]): Behavior[AuctionScraperCommand] = {
     timers.startSingleTimer(AskNextBatchSpecification, 10.seconds)
     idle
   }

@@ -30,6 +30,9 @@ object BatchManager {
     override def applyEvent(event: BatchManagerEvent): Try[BatchManager] = event match {
       case BatchManagerCreated(batchManagerID, timestamp) =>
         Success(ActiveBatchManager(batchManagerID, Nil, timestamp))
+
+      case _ =>
+        Failure(new IllegalStateException(s"Unexpected event $event in state EmptyBatchManager"))
     }
   }
 

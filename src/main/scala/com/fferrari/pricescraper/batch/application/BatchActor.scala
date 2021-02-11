@@ -30,18 +30,10 @@ object BatchActor {
   def processCommand(state: Batch, command: BatchCommand)
                     (implicit context: ActorContext[BatchCommand]): ReplyEffect[BatchEvent, Batch] =
     (command, state.processCommand(command)) match {
-      case (cmd: CreateBatch, Success(events)) =>
-        events.find { case _: BatchCreated => true } match {
-          case Some(event: BatchCreated) =>
-            Effect
-              .persist(events)
-              .thenReply(cmd.replyTo)(_ => StatusReply.success(event.batchID))
-
-          case None =>
-            Effect
-              .none
-              .thenReply(cmd.replyTo)(_ => StatusReply.error(s"Could not persist because of a missing BatchCreated ($cmd)"))
-        }
+      case (cmd: CreateBatch, Success(event: BatchCreated)) =>
+        Effect
+          .persist(event)
+          .thenReply(cmd.replyTo)(_ => StatusReply.success(event.batchID))
 
       case (cmd: CreateBatch, Failure(f)) =>
         context.log.error(f.getMessage)
@@ -50,18 +42,10 @@ object BatchActor {
           .unhandled
           .thenReply(cmd.replyTo)(_ => StatusReply.error(f))
 
-      case (cmd: MatchAuction, Success(events)) =>
-        events.find { case _: AuctionMatched => true } match {
-          case Some(event: AuctionMatched) =>
-            Effect
-              .persist(events)
-              .thenReply(cmd.replyTo)(_ => StatusReply.Ack)
-
-          case None =>
-            Effect
-              .none
-              .thenReply(cmd.replyTo)(_ => StatusReply.error(s"Could not persist because of a missing AuctionMatched ($cmd)"))
-        }
+      case (cmd: MatchAuction, Success(event: AuctionMatched)) =>
+        Effect
+          .persist(event)
+          .thenReply(cmd.replyTo)(_ => StatusReply.Ack)
 
       case (cmd: MatchAuction, Failure(f)) =>
         context.log.error(f.getMessage)
@@ -69,6 +53,12 @@ object BatchActor {
         Effect
           .unhandled
           .thenReply(cmd.replyTo)(_ => StatusReply.error(f))
+
+      case (cmd, event) =>
+        context.log.error(s"Unexpected event $event produced for command $cmd")
+        Effect
+          .unhandled
+          .thenNoReply()
     }
 
   def applyEvent(state: Batch, event: BatchEvent)
