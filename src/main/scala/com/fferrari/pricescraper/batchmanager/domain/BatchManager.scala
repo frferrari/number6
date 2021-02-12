@@ -3,8 +3,8 @@ package com.fferrari.pricescraper.batchmanager.domain
 import java.time.Instant
 import java.util.UUID
 
-import com.fferrari.pricescraper.batchmanager.domain.BatchManagerCommand.{AddBatchSpecification, CreateBatch, CreateBatchManager, PauseBatchSpecification, PauseProvider, ProvideNextBatchSpecification, ReleaseBatchSpecification, ReleaseProvider, UpdateLastUrlVisited}
-import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEvent.{BatchCreated, BatchManagerCreated, BatchSpecificationAdded, BatchSpecificationPaused, BatchSpecificationReleased, LastUrlVisitedUpdated, NothingToProcess, ProceedToBatchSpecification, ProviderPaused, ProviderReleased}
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerCommand.{AddBatchSpecification, CreateBatch, CreateBatchManager, PauseBatchSpecification, PauseProvider, ProvideNextBatchSpecification, RefreshLastVisitedTime, ReleaseBatchSpecification, ReleaseProvider, UpdateLastUrlVisited}
+import com.fferrari.pricescraper.batchmanager.domain.BatchManagerEvent.{BatchCreated, BatchManagerCreated, BatchSpecificationAdded, BatchSpecificationPaused, BatchSpecificationReleased, LastUrlVisitedUpdated, LastVisitedTimeRefreshed, NothingToProceedTo, NextBatchSpecificationProvided, ProviderPaused, ProviderReleased}
 import com.fferrari.pricescraper.common.Clock
 
 import scala.util.{Failure, Success, Try}
@@ -55,6 +55,12 @@ object BatchManager {
           .map(_ => Success(cmd.toLastUrlVisitedUpdated))
           .getOrElse(Failure(new IllegalArgumentException(s"Unable to update the lastUrlVisited for an unknown batchSpecification ${cmd.batchSpecificationID}")))
 
+      case cmd: RefreshLastVisitedTime =>
+        batchSpecifications
+          .find(_.batchSpecificationID == cmd.batchSpecificationID)
+          .map(_ => Success(cmd.toLastVisitedTimeRefreshed))
+          .getOrElse(Failure(new IllegalArgumentException(s"Unable to update the updatedAt for an unknown batchSpecification ${cmd.batchSpecificationID}")))
+
       case cmd: PauseBatchSpecification =>
         batchSpecifications
           .find(_.batchSpecificationID == cmd.batchSpecificationID)
@@ -86,7 +92,7 @@ object BatchManager {
           .sortBy(_.updatedAt)
           .headOption
           .map(bs => Success(cmd.toProceedToBatchSpecification(bs)))
-          .getOrElse(Success(NothingToProcess(Clock.now)))
+          .getOrElse(Success(NothingToProceedTo(Clock.now)))
 
       case _ =>
         Failure(new IllegalStateException(s"Unexpected command $command in state ActiveBatchManager"))
@@ -104,6 +110,14 @@ object BatchManager {
         val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
         if (idx >= 0) {
           val newBatchSpecification = batchSpecifications(idx).copy(lastUrlVisited = Some(lastUrlVisited), updatedAt = Clock.now)
+          Success(copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification)))
+        } else
+          Failure(new IllegalStateException(s"Could not update the lastUrlVisited for an unknown batchSpecification $batchSpecificationID"))
+
+      case LastVisitedTimeRefreshed(batchSpecificationID, timestamp) =>
+        val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecificationID)
+        if (idx >= 0) {
+          val newBatchSpecification = batchSpecifications(idx).copy(updatedAt = Clock.now)
           Success(copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification)))
         } else
           Failure(new IllegalStateException(s"Could not update the lastUrlVisited for an unknown batchSpecification $batchSpecificationID"))
@@ -144,12 +158,16 @@ object BatchManager {
             }
         Success(copy(batchSpecifications = newBatchSpecifications))
 
-      case ProceedToBatchSpecification(batchSpecification, timestamp) =>
-        Success(this)
+      case NextBatchSpecificationProvided(batchSpecification, timestamp) =>
+        val idx = batchSpecifications.indexWhere(_.batchSpecificationID == batchSpecification.batchSpecificationID)
+        if (idx >= 0) {
+          val newBatchSpecification = batchSpecifications(idx).copy(updatedAt = Clock.now)
+          Success(copy(batchSpecifications = batchSpecifications.updated(idx, newBatchSpecification)))
+        } else
+          Failure(new IllegalStateException(s"Could not refresh updateAt for an unknown bachSpecification ${batchSpecification.batchSpecificationID} (event=$event)"))
 
       case _ =>
         Failure(new IllegalStateException(s"Unexpected event $event in state ActiveBatchManager"))
     }
   }
-
 }

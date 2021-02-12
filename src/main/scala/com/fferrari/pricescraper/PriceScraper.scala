@@ -3,20 +3,11 @@ package com.fferrari.pricescraper
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.{AbstractBehavior, ActorContext, Behaviors}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
-import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
-import akka.persistence.query.Offset
-import akka.projection.eventsourced.EventEnvelope
-import akka.projection.eventsourced.scaladsl.EventSourcedProvider
-import akka.projection.jdbc.scaladsl.JdbcProjection
-import akka.projection.scaladsl.SourceProvider
-import akka.projection.{ProjectionBehavior, ProjectionId}
 import akka.util.Timeout
 import com.fferrari.pricescraper.PriceScraper.Command
-import com.fferrari.pricescraper.batch.domain.{Batch, BatchEvent}
 import com.fferrari.pricescraper.batchmanager.application.BatchManagerActor
 import com.fferrari.pricescraper.batchmanager.domain.BatchManagerCommand
-import com.fferrari.pricescraper.service.{PriceScraperServiceImpl, ScalikeJdbcSession, ScalikeJdbcSetup}
-import reactivemongo.api.{AsyncDriver, MongoConnection}
+import com.fferrari.pricescraper.service.PriceScraperServiceImpl
 
 import scala.concurrent.duration._
 
@@ -25,22 +16,11 @@ object PriceScraper {
   sealed trait Command
 
   def main(args: Array[String]): Unit = {
-    // val mongoUri = "mongodb://localhost:27017/number6?authMode=scram-sha1"
-    import scala.concurrent.ExecutionContext.Implicits.global
-    val mongoUri = "mongodb://number6:number6@localhost:27017/scraping"
-    val driver = AsyncDriver()
-
-    for {
-      parsedUri <- MongoConnection.fromString(mongoUri)
-      mongoConnection <- driver.connect(parsedUri)
-      db <- mongoConnection.database("scraping")
-    } yield ActorSystem(PriceScraper(db), "number6")
+    ActorSystem(PriceScraper(), "number6")
   }
 
-  def apply(mongoDB: reactivemongo.api.DB): Behavior[Command] = {
+  def apply(): Behavior[Command] = {
     Behaviors.setup { context =>
-      ScalikeJdbcSetup.init(context.system)
-
       /*
       val sourceProvider: SourceProvider[Offset, EventEnvelope[BatchEvent]] =
         EventSourcedProvider

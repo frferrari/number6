@@ -32,6 +32,9 @@ object BatchManagerEvent {
                                          lastUrlVisited: String,
                                          timestamp: Instant) extends BatchManagerEvent
 
+  final case class LastVisitedTimeRefreshed(batchSpecificationID: BatchSpecificationID,
+                                            timestamp: Instant) extends BatchManagerEvent
+
   final case class BatchSpecificationPaused(batchSpecificationID: BatchSpecificationID,
                                             timestamp: Instant) extends BatchManagerEvent
 
@@ -44,8 +47,9 @@ object BatchManagerEvent {
   final case class ProviderReleased(provider: String,
                                     timestamp: Instant) extends BatchManagerEvent
 
-  final case class ProceedToBatchSpecification(batchSpecification: BatchSpecification,
-                                               timestamp: Instant) extends BatchManagerEvent
+  final case class NextBatchSpecificationProvided(batchSpecification: BatchSpecification,
+                                                  timestamp: Instant) extends BatchManagerEvent
 
-  final case class NothingToProcess(timestamp: Instant) extends BatchManagerEvent
+  final case class NothingToProceedTo(timestamp: Instant) extends BatchManagerEvent
+
 }

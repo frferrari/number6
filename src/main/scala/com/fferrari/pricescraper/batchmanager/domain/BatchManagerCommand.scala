@@ -11,6 +11,7 @@ import com.fferrari.pricescraper.batchmanager.domain.BatchSpecification.BatchSpe
 import com.fferrari.pricescraper.common.Clock
 
 sealed trait BatchManagerCommand
+
 sealed trait BatchManagerCommandSimpleReply extends BatchManagerCommand {
   def replyTo: ActorRef[StatusReply[Done]]
 }
@@ -37,6 +38,12 @@ object BatchManagerCommand {
                                         replyTo: ActorRef[StatusReply[Done]]) extends BatchManagerCommandSimpleReply {
     def toLastUrlVisitedUpdated: LastUrlVisitedUpdated =
       LastUrlVisitedUpdated(batchSpecificationID, lastUrlVisited, Clock.now)
+  }
+
+  final case class RefreshLastVisitedTime(batchSpecificationID: BatchSpecificationID,
+                                          replyTo: ActorRef[StatusReply[Done]]) extends BatchManagerCommandSimpleReply {
+    def toLastVisitedTimeRefreshed: LastVisitedTimeRefreshed =
+      LastVisitedTimeRefreshed(batchSpecificationID, Clock.now)
   }
 
   final case class PauseBatchSpecification(batchSpecificationID: BatchSpecificationID,
@@ -71,7 +78,8 @@ object BatchManagerCommand {
 
   final case class ProvideNextBatchSpecification(provider: String,
                                                  replyTo: ActorRef[StatusReply[AuctionScraperCommand]]) extends BatchManagerCommand {
-    def toProceedToBatchSpecification(batchSpecification: BatchSpecification): ProceedToBatchSpecification =
-      ProceedToBatchSpecification(batchSpecification, Clock.now)
+    def toProceedToBatchSpecification(batchSpecification: BatchSpecification): NextBatchSpecificationProvided =
+      NextBatchSpecificationProvided(batchSpecification, Clock.now)
   }
+
 }

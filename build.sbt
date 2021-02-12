@@ -82,17 +82,17 @@ libraryDependencies ++= Seq(
   akkaHttp,
   akkaHttpSprayJson,
 
-  akkaProjectionCore,
-  akkaProjectionEventSourced,
-  akkaProjectionJdbc,
+  // akkaProjectionCore,
+  // akkaProjectionEventSourced,
+  // akkaProjectionJdbc,
 
-  slick,
-  slickHirakiCp,
+  // slick,
+  // slickHirakiCp,
 
-  postgresql,
-  reactiveMongo,
-  scalikeJdbc,
-  scalikeJdbcConfig,
+  // postgresql,
+  // reactiveMongo,
+  // scalikeJdbc,
+  // scalikeJdbcConfig,
 
   logbackClassic,
 

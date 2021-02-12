@@ -75,12 +75,12 @@ object BatchManagerActor {
           .none
           .thenReply(cmd.replyTo)(_ => StatusReply.error(f.getMessage))
 
-      case (cmd: ProvideNextBatchSpecification, Success(event: ProceedToBatchSpecification)) =>
+      case (cmd: ProvideNextBatchSpecification, Success(event: NextBatchSpecificationProvided)) =>
         Effect
-          .none
+          .persist(event)
           .thenReply(cmd.replyTo)(_ => StatusReply.success(AuctionScraperCommand.ProceedToBatchSpecification(event.batchSpecification)))
 
-      case (cmd: ProvideNextBatchSpecification, Success(event: NothingToProcess)) =>
+      case (cmd: ProvideNextBatchSpecification, Success(event: NothingToProceedTo)) =>
         Effect
           .none
           .thenNoReply() // The sender will timeout and this is what we want
